@@ -114,6 +114,11 @@ abstract class NativeWorkManagerPlatform extends PlatformInterface {
     throw UnimplementedError('getTaskRecord() has not been implemented.');
   }
 
+  /// Get tasks by status.
+  Future<List<TaskRecord>> getTasksByStatus({required TaskStatus status}) {
+    throw UnimplementedError('getTasksByStatus() has not been implemented.');
+  }
+
   /// Schedule a task chain.
   Future<ScheduleResult> enqueueChain(Map<String, dynamic> chainData) {
     throw UnimplementedError('enqueueChain() has not been implemented.');
@@ -245,5 +250,15 @@ abstract class NativeWorkManagerPlatform extends PlatformInterface {
   /// Manually trigger processing of the native offline queue.
   Future<bool> syncOfflineQueue() {
     throw UnimplementedError('syncOfflineQueue() has not been implemented.');
+  }
+
+  /// Report a task event manually for testing purposes.
+  void reportTestEvent(TaskEvent event) {
+    throw UnimplementedError('reportTestEvent() has not been implemented.');
+  }
+
+  /// Report a task progress manually for testing purposes.
+  void reportTestProgress(TaskProgress progress) {
+    throw UnimplementedError('reportTestProgress() has not been implemented.');
   }
 }

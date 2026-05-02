@@ -72,12 +72,11 @@ class KMPSchedulerBridge {
             let flexMs = (map["flexMs"] as? NSNumber)?.int64Value
             let initialDelayMs = (map["initialDelayMs"] as? NSNumber)?.int64Value ?? 0
             
-            // Note: KMPWorkManager TaskTriggerPeriodic doesn't currently support 
-            // initialDelayMs in its constructor. We parse it for future-proofing
-            // or in case we decide to handle it via a Task wrapper on iOS too.
             return TaskTriggerPeriodic(
                 intervalMs: intervalMs,
-                flexMs: flexMs != nil ? KotlinLong(value: flexMs!) : nil
+                flexMs: flexMs != nil ? KotlinLong(value: flexMs!) : nil,
+                initialDelayMs: initialDelayMs,
+                runImmediately: initialDelayMs == 0
             )
 
         case "exact":
@@ -106,7 +105,14 @@ class KMPSchedulerBridge {
     private static func parseConstraints(from map: [String: Any]?) -> Constraints {
         let requiresNetwork = map?["requiresNetwork"] as? Bool ?? false
         let requiresCharging = map?["requiresCharging"] as? Bool ?? false
-        let isHeavyTask = map?["isHeavyTask"] as? Bool ?? false
+        
+        // FIX I4: Respect bgTaskType if provided, otherwise fallback to auto-selection via isHeavyTask.
+        let isHeavyTask: Bool
+        if let type = map?["bgTaskType"] as? String {
+            isHeavyTask = (type == "processing")
+        } else {
+            isHeavyTask = map?["isHeavyTask"] as? Bool ?? false
+        }
 
         let qos: Qos
         switch (map?["qos"] as? String)?.lowercased() {

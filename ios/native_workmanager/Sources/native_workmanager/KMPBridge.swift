@@ -32,11 +32,15 @@ public class KMPBridge {
         scheduler = NativeTaskScheduler(
             additionalPermittedTaskIds: [],
             diskSpaceBufferBytes: bufferBytes,
-            fileStorage: fileStorage
+            singleTaskExecutor: nil,
+            chainExecutor: nil,
+            fileStorage: fileStorage,
+            scope: nil,
+            forceWaitMigration: false
         )
 
         isInitialized = true
-        NativeLogger.d("KMPBridge: Initialized with NativeTaskScheduler from kmpworkmanager v2.4.1")
+        NativeLogger.d("KMPBridge: Initialized with NativeTaskScheduler from kmpworkmanager v2.4.3")
     }
 
     public func reinitialize(diskSpaceBufferMB: Int) {
@@ -52,7 +56,11 @@ public class KMPBridge {
         scheduler = NativeTaskScheduler(
             additionalPermittedTaskIds: [],
             diskSpaceBufferBytes: bufferBytes,
-            fileStorage: fileStorage
+            singleTaskExecutor: nil,
+            chainExecutor: nil,
+            fileStorage: fileStorage,
+            scope: nil,
+            forceWaitMigration: false
         )
         NativeLogger.d("KMPBridge: scheduler recreated with diskSpaceBuffer=\(diskSpaceBufferMB)MB")
     }
@@ -134,7 +142,7 @@ public actor AuthTokenManager {
 
         let refreshTask = Task<String?, Never> {
             do {
-                guard let url = URL(string: config.url) else { return nil }
+                guard let url = SecurityValidator.validateURL(config.url) else { return nil }
                 var request = URLRequest(url: url)
                 request.httpMethod = config.effectiveMethod
                 config.headers?.forEach { request.setValue($1, forHTTPHeaderField: $0) }
