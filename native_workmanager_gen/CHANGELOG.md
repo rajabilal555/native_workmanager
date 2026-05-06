@@ -1,3 +1,7 @@
+## 1.2.5 - 2026-05-06
+
+- Bump version to 1.2.5 to synchronize with the `native_workmanager` package release.
+
 ## 1.2.3 - 2026-04-24
 
 - Bump version to 1.2.3 to synchronize with the `native_workmanager` package release.
