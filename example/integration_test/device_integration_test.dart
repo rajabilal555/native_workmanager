@@ -227,6 +227,42 @@ void main() {
       await NativeWorkManager.cancel(taskId: id);
     });
 
+    testWidgets(
+      'periodic – regression test for Issue #26 (initialDelay + runImmediately: false)',
+      (tester) async {
+        final id = _id('periodic_issue_26');
+
+        // This configuration previously triggered an AssertionError in Dart
+        // and had mapping issues in the iOS Swift bridge.
+        final result = await NativeWorkManager.enqueue(
+          taskId: id,
+          trigger: TaskTrigger.periodic(
+            const Duration(minutes: 15),
+            initialDelay: const Duration(minutes: 5),
+            runImmediately: false,
+          ),
+          worker: DartWorker(callbackId: 'dit_pass'),
+        );
+
+        expect(
+          result.scheduleResult,
+          ScheduleResult.accepted,
+          reason:
+              'Periodic task with initialDelay and runImmediately: false must be accepted',
+        );
+
+        // Verify task status to ensure it's actually scheduled in the native system
+        final status = await NativeWorkManager.getTaskStatus(taskId: id);
+        expect(
+          status,
+          isNotNull,
+          reason: 'Task should be successfully scheduled',
+        );
+
+        await NativeWorkManager.cancel(taskId: id);
+      },
+    );
+
     testWidgets('periodic – first execution fires; task survives first run', (
       tester,
     ) async {

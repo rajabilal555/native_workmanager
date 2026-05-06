@@ -807,10 +807,12 @@ internal fun NativeWorkmanagerPlugin.enqueuePeriodicWorkDirect(
     
     if (tag != null) requestBuilder.addTag(tag)
 
-    val delayMs = if (!trigger.runImmediately && trigger.initialDelayMs == 0L) {
+    val delayMs = if (trigger.initialDelayMs > 0L) {
+        trigger.initialDelayMs
+    } else if (!trigger.runImmediately) {
         trigger.intervalMs
     } else {
-        trigger.initialDelayMs
+        0L
     }
     if (delayMs > 0) {
         requestBuilder.setInitialDelay(delayMs, TimeUnit.MILLISECONDS)

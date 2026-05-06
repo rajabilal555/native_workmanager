@@ -135,15 +135,19 @@ void main() {
       });
 
       test(
-          'should throw error if both initialDelay and runImmediately: false are set',
+          'should not throw error if both initialDelay and runImmediately: false are set',
           () {
         final trigger = TaskTrigger.periodic(
-          Duration(hours: 1),
-          initialDelay: Duration(minutes: 30),
+          const Duration(hours: 1),
+          initialDelay: const Duration(minutes: 30),
           runImmediately: false,
         );
 
-        expect(() => trigger.toMap(), throwsA(isA<AssertionError>()));
+        expect(() => trigger.toMap(), returnsNormally);
+        final map = trigger.toMap();
+        expect(
+            map['initialDelayMs'], const Duration(minutes: 30).inMilliseconds);
+        expect(map['runImmediately'], isFalse);
       });
 
       test('should serialize periodic without flex to map', () {

@@ -656,12 +656,9 @@ class PeriodicTrigger extends TaskTrigger {
             'WorkManager rejects values below 5 min with IllegalArgumentException at runtime.',
       );
     }
-    assert(
-      runImmediately || (initialDelay?.inMilliseconds ?? 0) == 0,
-      'runImmediately: false and initialDelay cannot both be set — behaviour is undefined. '
-      'Use one or the other: initialDelay to specify an exact first-run offset, '
-      'or runImmediately: false to defer by one full interval.',
-    );
+    // If runImmediately is false and no initialDelay is set, the native side
+    // will defer the first execution by one full interval.
+    // If initialDelay is set, it always takes precedence for the first execution.
     return {
       'type': 'periodic',
       'intervalMs': interval.inMilliseconds,

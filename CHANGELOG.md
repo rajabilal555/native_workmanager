@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.5] - 2026-05-06
+
+### Fixed
+- **Core**: Removed over-restrictive assertion in `TaskTrigger.periodic` that prevented using `initialDelay` and `runImmediately: false` together ([#26](https://github.com/brewkits/native_workmanager/issues/26)).
+- **iOS**: Fixed bug where `runImmediately` flag was incorrectly recomputed from `initialDelay` instead of using the user-provided value.
+
 ## [1.2.4] - 2026-04-29
 
 ### Fixed
@@ -107,7 +113,7 @@ All workers maintain high performance with low resource usage:
 
 ### 🙏 **Acknowledgments**
 
-Built on [kmpworkmanager v2.4.1](https://github.com/pablichjenkov/kmpworkmanager) for Kotlin Multiplatform.
+Built on [kmpworkmanager v2.4.3](https://github.com/brewkits/kmpworkmanager/releases/tag/v2.4.3) for Kotlin Multiplatform.
 
 ---
 
@@ -116,12 +122,12 @@ Built on [kmpworkmanager v2.4.1](https://github.com/pablichjenkov/kmpworkmanager
 - [GitHub Repository](https://github.com/brewkits/native_workmanager)
 - [Issue Tracker](https://github.com/brewkits/native_workmanager/issues)
 - [Documentation](https://github.com/brewkits/native_workmanager#readme)
-- [KMP WorkManager](https://github.com/pablichjenkov/kmpworkmanager)
+- [KMP WorkManager](https://github.com/brewkits/kmpworkmanager)
 - [Migration Guide](doc/MIGRATION_GUIDE.md)
 
 ---
 
-**Latest Version:** 1.2.3
+**Latest Version:** 1.2.5
 **Status:**  Production Ready - Stable release for all production apps
-**KMP Parity:** 100%  (kmpworkmanager v2.4.1)
+**KMP Parity:** 100%  (kmpworkmanager v2.4.3)
 **Platforms:** Android  | iOS 

@@ -71,12 +71,13 @@ class KMPSchedulerBridge {
             }
             let flexMs = (map["flexMs"] as? NSNumber)?.int64Value
             let initialDelayMs = (map["initialDelayMs"] as? NSNumber)?.int64Value ?? 0
+            let runImmediately = map["runImmediately"] as? Bool ?? true
             
             return TaskTriggerPeriodic(
                 intervalMs: intervalMs,
                 flexMs: flexMs != nil ? KotlinLong(value: flexMs!) : nil,
                 initialDelayMs: initialDelayMs,
-                runImmediately: initialDelayMs == 0
+                runImmediately: runImmediately
             )
 
         case "exact":
