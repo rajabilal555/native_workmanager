@@ -71,11 +71,17 @@ class KMPSchedulerBridge {
             }
             let flexMs = (map["flexMs"] as? NSNumber)?.int64Value
             let initialDelayMs = (map["initialDelayMs"] as? NSNumber)?.int64Value ?? 0
-            let runImmediately = map["runImmediately"] as? Bool ?? true
-            
+            var runImmediately = map["runImmediately"] as? Bool ?? true
+
+            // Resolve KMP Library "Ambiguous" conflict: if initial delay is provided,
+            // the task is inherently not running immediately.
+            if initialDelayMs > 0 {
+                runImmediately = true
+            }
+
             return TaskTriggerPeriodic(
                 intervalMs: intervalMs,
-                flexMs: flexMs != nil ? KotlinLong(value: flexMs!) : nil,
+                flexMs: flexMs as? KotlinLong,
                 initialDelayMs: initialDelayMs,
                 runImmediately: runImmediately
             )

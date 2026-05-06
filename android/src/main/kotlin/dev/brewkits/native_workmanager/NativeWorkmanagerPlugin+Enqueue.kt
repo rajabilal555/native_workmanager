@@ -301,7 +301,14 @@ internal fun NativeWorkmanagerPlugin.handleEnqueue(call: MethodCall, result: Res
                     val intervalMs = (triggerMap?.get("intervalMs") as? Number)?.toLong() ?: 900_000L
                     val flexMs = (triggerMap?.get("flexMs") as? Number)?.toLong()
                     val initialDelayMs = (triggerMap?.get("initialDelayMs") as? Number)?.toLong() ?: 0L
-                    val runImmediately = triggerMap?.get("runImmediately") as? Boolean ?: true
+                    var runImmediately = triggerMap?.get("runImmediately") as? Boolean ?: true
+
+                    // Resolve KMP Library "Ambiguous" conflict: if initial delay is provided, 
+                    // the task is inherently not running immediately.
+                    if (initialDelayMs > 0L) {
+                        runImmediately = true
+                    }
+
                     TaskTrigger.Periodic(
                         intervalMs = intervalMs,
                         flexMs = flexMs,
