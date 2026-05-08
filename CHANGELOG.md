@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] - 2026-05-08
+
+### Added
+- **Android**: **Industrial-grade Foreground Service (FGS) Support**. Added `ForegroundNotificationConfig` to `Constraints`, allowing tasks to run as prioritized Foreground Services to bypass Android 12+ background restrictions.
+- **Android**: Full compliance with Android 14 (API 34) Foreground Service Types. Automatically maps task types (dataSync, location, media, etc.) to system-level flags.
+- **Android**: Proactive task promotion using `setForeground()` to ensure immediate execution even when the app is in the background.
+- **Android**: FGS state persistence: configuration is automatically restored after device reboots or task resumes.
+- **Core**: Added comprehensive unit tests and a new Demo page in the example app for FGS bypass.
+
 ## [1.2.5] - 2026-05-06
 
 ### Fixed

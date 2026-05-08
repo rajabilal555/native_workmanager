@@ -91,6 +91,7 @@ The dominant `workmanager` plugin spins up a **full Flutter Engine per backgroun
 | Built-in image workers | ❌ | ✅ (resize, crop, convert, thumbnail — EXIF-aware) |
 | Built-in crypto workers | ❌ | ✅ (AES-256-GCM, SHA-256/512, HMAC) |
 | Task chains (A→B→C) | ❌ | ✅ (persist across reboots) |
+| FGS Bypass (Android) | ❌ | ✅ (Bypass Doze/Standby with custom notifications) |
 | Per-task progress stream | ❌ | ✅ |
 | Survives device reboot | ✅ | ✅ |
 | Remote Trigger (Push) | ❌ | ✅ (FCM/APNs + HMAC Security) |

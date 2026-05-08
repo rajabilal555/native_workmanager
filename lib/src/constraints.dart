@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'foreground_notification_config.dart';
 
 /// Backoff policy for retry behavior when task fails.
 ///
@@ -848,7 +849,17 @@ class Constraints {
     this.systemConstraints = const {},
     this.bgTaskType,
     this.foregroundServiceType,
+    this.foregroundNotificationConfig,
   });
+
+  /// Configuration for the Foreground Service notification (Android only).
+  ///
+  /// If provided, the task will run as a Foreground Service on Android,
+  /// guaranteeing execution even if the app is killed or the device enters Doze mode.
+  /// This requires the appropriate FOREGROUND_SERVICE permissions in your manifest.
+  ///
+  /// Ignored on iOS.
+  final ForegroundNotificationConfig? foregroundNotificationConfig;
 
   /// Task requires any network connection.
   final bool requiresNetwork;
@@ -1163,6 +1174,8 @@ class Constraints {
         'systemConstraints': systemConstraints.map((c) => c.name).toList(),
         'bgTaskType': bgTaskType?.name,
         'foregroundServiceType': foregroundServiceType?.name,
+        if (foregroundNotificationConfig != null)
+          'foregroundNotificationConfig': foregroundNotificationConfig!.toMap(),
       };
 
   /// Create from map.
@@ -1213,6 +1226,11 @@ class Constraints {
                 )
                 .firstOrNull
             : null,
+        foregroundNotificationConfig: map['foregroundNotificationConfig'] != null
+            ? ForegroundNotificationConfig.fromMap(
+                Map<String, dynamic>.from(
+                    map['foregroundNotificationConfig'] as Map))
+            : null,
       );
 
   /// Create a copy with updated values.
@@ -1233,6 +1251,7 @@ class Constraints {
     Set<SystemConstraint>? systemConstraints,
     BGTaskType? bgTaskType,
     ForegroundServiceType? foregroundServiceType,
+    ForegroundNotificationConfig? foregroundNotificationConfig,
   }) =>
       Constraints(
         requiresNetwork: requiresNetwork ?? this.requiresNetwork,
@@ -1256,6 +1275,8 @@ class Constraints {
         bgTaskType: bgTaskType ?? this.bgTaskType,
         foregroundServiceType:
             foregroundServiceType ?? this.foregroundServiceType,
+        foregroundNotificationConfig:
+            foregroundNotificationConfig ?? this.foregroundNotificationConfig,
       );
 
   @override
@@ -1277,7 +1298,8 @@ class Constraints {
           maxRetries == other.maxRetries &&
           setEquals(systemConstraints, other.systemConstraints) &&
           bgTaskType == other.bgTaskType &&
-          foregroundServiceType == other.foregroundServiceType;
+          foregroundServiceType == other.foregroundServiceType &&
+          foregroundNotificationConfig == other.foregroundNotificationConfig;
 
   @override
   int get hashCode => Object.hash(
@@ -1312,5 +1334,6 @@ class Constraints {
       'qos: ${qos.name}, '
       'iosAlarm: ${exactAlarmIOSBehavior.name}, '
       'backoff: ${backoffPolicy.name}, '
-      'backoffDelay: ${backoffDelayMs}ms)';
+      'backoffDelay: ${backoffDelayMs}ms, '
+      'fgs: ${foregroundNotificationConfig != null})';
 }

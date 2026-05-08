@@ -211,6 +211,27 @@ Future<void> scheduleComplexTask() async {
 }
 ```
 
+### Example 4: Foreground Service (Bypass Android Restrictions)
+
+For mission-critical tasks that must run **immediately**, bypassing Doze Mode and App Standby:
+
+```dart
+await NativeWorkManager.enqueue(
+  taskId: 'priority-sync',
+  worker: NativeWorker.httpSync(url: 'https://api.example.com/sync'),
+  constraints: Constraints(
+    requiresNetwork: true,
+    // Mandatory for FGS Bypass (Android only)
+    foregroundNotificationConfig: ForegroundNotificationConfig(
+      title: "Syncing Data",
+      body: "High-priority sync in progress...",
+      colorHex: "#6750A4",
+      showCancelButton: true,
+    ),
+  ),
+);
+```
+
 ---
 
 ## Step 4: Verify It Works (30 seconds)

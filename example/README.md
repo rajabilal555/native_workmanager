@@ -12,8 +12,15 @@ This example app showcases the complete Native WorkManager API through an intera
 4. **Advanced Constraints** - isHeavyTask & QoS
 5. **Task Chains** - Sequential & parallel workflows
 6. **Scheduled Tasks** - Periodic, exact, and windowed scheduling
+7. **FGS Bypass** - High-priority tasks with custom notifications (Android)
 
 ## Features Demonstrated
+
+### ✅ v1.3.0 Features
+
+- **FGS Bypass** - Industrial-grade Foreground Service support for Android
+- **Custom Notifications** - Full control over FGS notification UI
+- **Android 14 Compliance** - Automated service type mapping
 
 ### ✅ v1.1.1 Features
 
