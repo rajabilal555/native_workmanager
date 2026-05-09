@@ -288,6 +288,40 @@ class _DemoHomePageState extends State<DemoHomePage>
     }
   }
 
+  Future<void> _simulateOOMKill() async {
+    final taskId = 'oom-${_taskCounter++}';
+    try {
+      // 1. Schedule a Native Worker (Lightweight, 2MB RAM)
+      await NativeWorkManager.enqueue(
+        taskId: taskId,
+        trigger: TaskTrigger.oneTime(initialDelayMs: 5000), // Delay 5s to allow OOM to happen first
+        worker: NativeWorker(workerId: 'LoggingWorker'),
+        constraints: const Constraints(
+          isHeavyTask: true, // Bypass Doze mode and keep it prioritized
+        ),
+        inputData: {'message': 'Survived OOM Kill!'},
+      );
+      _addLog('📤 Scheduled: OOM Resilient Task ($taskId)');
+      _addLog('⚙️ Task will trigger in 5s. Triggering OOM now...');
+      
+      // 2. Simulate extreme memory pressure (OOM)
+      // This will quickly consume memory until the OS kills the app.
+      Future.delayed(const Duration(seconds: 1), () {
+        List<List<int>> memoryHog = [];
+        try {
+          while (true) {
+            memoryHog.add(List.filled(1000000, 0)); // Allocate ~8MB chunks rapidly
+          }
+        } catch (e) {
+          _addLog('❌ Out of memory caught in Dart, but OS might kill soon.');
+        }
+      });
+      
+    } catch (e) {
+      _addLog('❌ Error: $e');
+    }
+  }
+
   Future<void> _scheduleWithQoS() async {
     final taskId = 'qos-${_taskCounter++}';
     try {
@@ -665,6 +699,18 @@ class _DemoHomePageState extends State<DemoHomePage>
         const Text(
           '  Uses ForegroundService on Android\n'
           '  Shows notification, prevents kill',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 16),
+        _buildButton(
+          'Simulate OOM Kill (Memory Pressure)',
+          Icons.memory,
+          _simulateOOMKill,
+          Colors.deepOrange,
+        ),
+        const Text(
+          '  Allocates memory until OS kills the app.\n'
+          '  Proves NativeWorker survives system purge.',
           style: TextStyle(fontSize: 12, color: Colors.grey),
         ),
         const SizedBox(height: 8),
