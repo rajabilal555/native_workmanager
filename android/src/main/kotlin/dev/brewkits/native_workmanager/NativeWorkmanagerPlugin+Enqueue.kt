@@ -367,8 +367,8 @@ internal fun NativeWorkmanagerPlugin.handleEnqueue(call: MethodCall, result: Res
                 // Check if expedited mode is requested for download workers (Task 6 / UIDT)
                 val isDownloadWorker = workerClassName.contains("HttpDownloadWorker") ||
                     workerClassName.contains("ParallelHttpDownloadWorker")
-                val isExpedited = isDownloadWorker &&
-                    (workerConfig?.get("expedited") == true || workerConfig?.get("priority") == "high")
+                val isExpedited = constraints.allowWhileIdle || (isDownloadWorker &&
+                    (workerConfig?.get("expedited") == true || workerConfig?.get("priority") == "high"))
                 NativeLogger.d("Scheduling '$taskId': OneTime(delay=${delayMs}ms, expedited=$isExpedited, fgs=${constraints.extras["fgsConfig"] != null}) → direct WorkManager")
                 enqueueOneTimeWorkDirect(taskId, workerClassName, inputJson, tag, constraints, delayMs, policy, isExpedited)
                 taskStatuses[taskId] = "pending"

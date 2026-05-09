@@ -1,6 +1,6 @@
 # API Reference
 
-> Complete API documentation for native_workmanager v1.2.2
+> Complete API documentation for native_workmanager v1.2.6
 
 ## Core Classes
 
@@ -565,10 +565,13 @@ Constraints({
   int backoffDelayMs = 30000,
   int maxAttempts = 3,
   bool isHeavyTask = false,
+  bool allowWhileIdle = false,
   ForegroundServiceType? foregroundServiceType,
   ForegroundNotificationConfig? foregroundNotificationConfig,
 })
 ```
+
+- `allowWhileIdle`: (Android only) If true, uses **Expedited Work**. Guaranteed to run even when the device is locked or in Doze mode.
 
 **Note on FGS Bypass**: Providing a `foregroundNotificationConfig` automatically promotes the task to an Android Foreground Service. This is the recommended way to bypass battery optimizations for critical, long-running tasks.
 

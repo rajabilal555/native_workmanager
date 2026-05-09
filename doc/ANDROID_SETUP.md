@@ -81,7 +81,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  native_workmanager: ^1.2.2
+  native_workmanager: ^1.2.6
 ```
 
 Run:
@@ -613,4 +613,4 @@ if (handler.scheduleResult == ScheduleResult.rejectedOsPolicy) {
 
 ---
 
-**Last Updated:** April 2026 (v1.2.2)
+**Last Updated:** May 2026 (v1.2.6)

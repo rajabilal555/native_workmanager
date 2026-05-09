@@ -378,8 +378,8 @@ enum SystemConstraint {
 /// ```xml
 /// <key>BGTaskSchedulerPermittedIdentifiers</key>
 /// <array>
-///   <string>dev.brewkits.kmpworkmanager.refresh</string>
-///   <string>dev.brewkits.kmpworkmanager.processing</string>
+///   <string>dev.brewkits.native_workmanager.refresh</string>
+///   <string>dev.brewkits.native_workmanager.task</string>
 /// </array>
 /// ```
 ///
@@ -879,7 +879,14 @@ class Constraints {
   /// Task requires storage to not be low. (Android only)
   final bool requiresStorageNotLow;
 
-  /// Allow task to run during Doze mode. (Android only)
+  /// Allow task to run during Doze mode (Android only).
+  ///
+  /// **Android**: If true, the task is scheduled as **Expedited Work**.
+  /// - Can run even when the device is locked or in Doze mode.
+  /// - Has higher priority and is less likely to be deferred by the system.
+  /// - Only applicable to OneTime tasks.
+  ///
+  /// **iOS**: Ignored (use [requiresCharging] or [bgTaskType] for similar control).
   final bool allowWhileIdle;
 
   /// Indicates this is a long-running or heavy task requiring special handling.
@@ -1069,6 +1076,13 @@ class Constraints {
   /// ```xml
   /// <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
   /// ```
+  ///
+  /// **Android 14+ (API 34) Compliance**:
+  /// You must specify a service type that accurately reflects your task's activity.
+  /// If not provided, it defaults to `dataSync`.
+  ///
+  /// Ensure you have added the corresponding permission to your `AndroidManifest.xml`
+  /// (e.g., `android.permission.FOREGROUND_SERVICE_DATA_SYNC`).
   ///
   /// Default: null (uses dataSync)
   final ForegroundServiceType? foregroundServiceType;

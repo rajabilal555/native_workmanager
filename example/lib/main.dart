@@ -312,7 +312,7 @@ class _DemoHomePageState extends State<DemoHomePage> {
       });
     });
 
-    _addLog('🚀 NativeWorkManager v1.2.0 — High-Performance Background Engine');
+    _addLog('🚀 NativeWorkManager v1.2.6 — Industrial Reliability & FGS Bypass');
   }
 
   String _formatTime(DateTime dt) {

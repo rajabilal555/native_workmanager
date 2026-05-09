@@ -31,7 +31,7 @@ class ForegroundNotificationConfig {
   /// Clicking this button will immediately cancel the background task via WorkManager.
   final bool showCancelButton;
 
-  /// The text to display on the cancel button (e.g., 'Hủy' or 'Cancel').
+  /// The text to display on the cancel button (e.g., 'Cancel').
   /// Defaults to 'Cancel'.
   final String cancelText;
 
