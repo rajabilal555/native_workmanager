@@ -87,6 +87,7 @@ The dominant `workmanager` plugin spins up a **full Flutter Engine per backgroun
 |---|:---:|:---:|
 | Memory per task | ~50–100 MB | **~2–5 MB** |
 | Task startup | 1,500–3,000 ms | **< 50 ms** |
+| OOM Resilience | ❌ (Killed by OS) | ✅ (Survives system purge) |
 | Built-in HTTP workers | ❌ | ✅ (resumable download, chunked upload, parallel) |
 | Built-in image workers | ❌ | ✅ (resize, crop, convert, thumbnail — EXIF-aware) |
 | Built-in crypto workers | ❌ | ✅ (AES-256-GCM, SHA-256/512, HMAC) |
@@ -98,6 +99,21 @@ The dominant `workmanager` plugin spins up a **full Flutter Engine per backgroun
 | Custom Dart workers | ✅ | ✅ (opt-in via `DartWorker`) |
 
 > **If you only do HTTP syncs and file ops, you probably don't need Dart workers at all.** Use the native workers directly — they're production-hardened and need zero engine overhead.
+
+---
+
+## Industrial-Grade OOM Resilience
+
+Most Flutter background libraries fail because they boot a full Flutter Engine (50MB+ RAM) for every task. Under memory pressure, Android/iOS will kill these heavy processes first.
+
+`native_workmanager` uses a **Zero-Engine Architecture**. Our Native Workers run in pure Kotlin/Swift, consuming only **~2MB of RAM**. This makes them "invisible" to the OS's memory killer.
+
+### The OOM Survival Test
+Even if the system is under extreme pressure and kills your app while a task is running, **your work is not lost**.
+- **Android:** Managed by `WorkManager` with system-level persistence. Tasks are automatically rescheduled with exponential backoff.
+- **iOS:** Recovers state from a native SQLite store the moment a new background window is granted.
+
+> **See for yourself:** Run the "Simulate OOM Kill" demo in the example app. It crashes the app with a memory bomb, and you'll see the background task trigger successfully seconds later.
 
 ---
 
