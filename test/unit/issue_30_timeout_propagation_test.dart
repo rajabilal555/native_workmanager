@@ -81,6 +81,36 @@ void main() {
           const Duration(seconds: 1),
         );
       });
+
+      test('falls back to 25 s when timeoutMs is zero', () {
+        expect(
+          resolveDispatcherTimeout({'timeoutMs': 0}),
+          const Duration(seconds: 25),
+        );
+      });
+
+      test('falls back to 25 s when timeoutMs is negative', () {
+        // A negative Duration passed to Future.timeout() fires immediately.
+        // Reject it so a buggy bridge can't kill every DartWorker instantly.
+        expect(
+          resolveDispatcherTimeout({'timeoutMs': -1000}),
+          const Duration(seconds: 25),
+        );
+      });
+
+      test('falls back to 25 s when timeoutMs is NaN', () {
+        expect(
+          resolveDispatcherTimeout({'timeoutMs': double.nan}),
+          const Duration(seconds: 25),
+        );
+      });
+
+      test('falls back to 25 s when timeoutMs is Infinity', () {
+        expect(
+          resolveDispatcherTimeout({'timeoutMs': double.infinity}),
+          const Duration(seconds: 25),
+        );
+      });
     });
   });
 }

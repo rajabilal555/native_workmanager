@@ -130,7 +130,10 @@ internal fun NativeWorkmanagerPlugin.handleResume(call: MethodCall, result: Resu
                             else       -> v
                         }
                     } as Map<String, Any?>
-                } catch (_: Exception) { null }
+                } catch (e: Exception) {
+                    NativeLogger.w("handleResume: failed to parse constraintsJson for '$taskId', resuming with empty constraints: ${e.message}")
+                    null
+                }
             }
             val constraints = parseConstraints(restoredConstraintsMap)
 

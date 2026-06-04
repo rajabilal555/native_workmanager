@@ -403,6 +403,10 @@ extension NativeWorkmanagerPlugin {
             await concurrencyLimiter.release()
 
             if lastResult.success { break }
+            if !lastResult.shouldRetry {
+                NativeLogger.d("[Retry] Task '\(taskId)': shouldRetry=false — not retrying after attempt \(attempt)/\(totalAttempts)")
+                break
+            }
 
             if attempt < totalAttempts {
                 NativeLogger.d("[Retry] Task '\(taskId)': attempt \(attempt)/\(totalAttempts) failed — retrying in \(delayMs)ms")

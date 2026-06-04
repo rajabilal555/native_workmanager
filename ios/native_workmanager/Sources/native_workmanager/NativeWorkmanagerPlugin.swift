@@ -278,13 +278,23 @@ public class NativeWorkmanagerPlugin: NSObject, FlutterPlugin {
             return
         }
 
+        let directConstraintsMap = args["constraints"] as? [String: Any]
+        let directQos = (directConstraintsMap?["qos"] as? String) ?? "background"
+        let directRetryConfig = RetryConfig.from(constraintsMap: directConstraintsMap)
+
         let task = Task { [weak self] in
             guard let self else { return }
             if initialDelayMs > 0 {
                 try? await Task.sleep(nanoseconds: UInt64(initialDelayMs) * 1_000_000)
             }
             guard !Task.isCancelled else { return }
-            await self.executeWorkerSync(taskId: taskId, workerClassName: workerClassName, workerConfig: workerConfig, qos: "background")
+            await self.executeWorkerSync(
+                taskId: taskId,
+                workerClassName: workerClassName,
+                workerConfig: workerConfig,
+                qos: directQos,
+                retryConfig: directRetryConfig
+            )
         }
         stateQueue.sync(flags: .barrier) { self.activeTasks[taskId] = task }
 

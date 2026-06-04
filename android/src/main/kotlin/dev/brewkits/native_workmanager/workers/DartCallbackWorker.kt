@@ -130,6 +130,8 @@ class DartCallbackWorkerWrapper(
                 WorkerResult.Failure("Dart callback returned false: $callbackId")
             }
 
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Error in DartCallbackWorker", e)
             // shouldRetry = false: emit a definitive failure event instead of retrying forever

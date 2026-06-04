@@ -9,6 +9,12 @@ Worker _buildWebSocket({
   String? storeResponseAt,
   int? pingIntervalSeconds,
 }) {
+  if (defaultTargetPlatform == TargetPlatform.iOS) {
+    throw UnsupportedError(
+      'NativeWorker.webSocket() is not supported on iOS. '
+      'Use a DartWorker with dart:io WebSocket for cross-platform WebSocket support.',
+    );
+  }
   if (url.isEmpty) {
     throw ArgumentError('url cannot be empty for webSocket');
   }

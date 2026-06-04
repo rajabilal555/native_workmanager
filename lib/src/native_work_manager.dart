@@ -101,7 +101,7 @@ Duration resolveDispatcherTimeout(Map args) {
   // (which would throw from `.toInt()`); the `is num` test rejects strings,
   // bools, lists, maps and nulls — all of which must fall back to the safe
   // default rather than crash the dispatcher.
-  if (raw is num && raw.isFinite) {
+  if (raw is num && raw.isFinite && raw > 0) {
     return Duration(milliseconds: raw.toInt());
   }
   return const Duration(milliseconds: fallbackMs);
