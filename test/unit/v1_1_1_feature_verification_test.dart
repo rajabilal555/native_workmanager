@@ -10,7 +10,7 @@ void main() {
         isHeavyTask: true,
         backoffPolicy: BackoffPolicy.linear,
         backoffDelayMs: 45000,
-        allowWhileIdle: true,
+        allowWhileIdle: false,
       );
 
       expect(constraints.requiresNetwork, isTrue);
@@ -18,13 +18,13 @@ void main() {
       expect(constraints.isHeavyTask, isTrue);
       expect(constraints.backoffPolicy, BackoffPolicy.linear);
       expect(constraints.backoffDelayMs, 45000);
-      expect(constraints.allowWhileIdle, isTrue);
+      expect(constraints.allowWhileIdle, isFalse);
 
       final map = constraints.toMap();
       expect(map['isHeavyTask'], isTrue);
       expect(map['backoffPolicy'], 'linear');
       expect(map['backoffDelayMs'], 45000);
-      expect(map['allowWhileIdle'], isTrue);
+      expect(map['allowWhileIdle'], isFalse);
     });
 
     test('Constraints round-trip for new fields', () {

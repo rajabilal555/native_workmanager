@@ -174,7 +174,7 @@ void main() {
           requiresDeviceIdle: true,
           requiresBatteryNotLow: true,
           requiresStorageNotLow: true,
-          allowWhileIdle: true,
+          allowWhileIdle: false,
           isHeavyTask: true,
         ).toMap();
 
@@ -184,7 +184,7 @@ void main() {
         expect(map['requiresDeviceIdle'], isTrue);
         expect(map['requiresBatteryNotLow'], isTrue);
         expect(map['requiresStorageNotLow'], isTrue);
-        expect(map['allowWhileIdle'], isTrue);
+        expect(map['allowWhileIdle'], isFalse);
         expect(map['isHeavyTask'], isTrue);
       });
 

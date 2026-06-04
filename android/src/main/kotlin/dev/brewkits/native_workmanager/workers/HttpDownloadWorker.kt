@@ -227,7 +227,13 @@ class HttpDownloadWorker : AndroidWorker {
         // ETag sidecar is derived from sentinelTempFile path (per-file) rather than from
         // config.savePath (directory level), so multiple downloads to the same directory
         // each have their own ETag file.
-        val sentinelTempFile = if (config.isDirectory) File(config.savePath + PENDING_TMP_FILENAME) else File(config.savePath + ".tmp")
+        // Include taskId in the sentinel name so concurrent downloads to the same
+        // directory don't share a temp file (data corruption if two workers write to
+        // the same path simultaneously).
+        val sentinelTempFile = if (config.isDirectory)
+            File(config.savePath + "__pending_${taskId ?: "dl"}__.tmp")
+        else
+            File(config.savePath + ".tmp")
 
         // For directory mode, destinationFile is resolved after the response headers arrive.
         // For now, set a placeholder that will be replaced below.
@@ -489,29 +495,77 @@ class HttpDownloadWorker : AndroidWorker {
                     Log.d(TAG, "Checksum verified: $actualChecksum")
                 }
 
-                // onDuplicate=rename: find next available filename
-                if (config.onDuplicate == "rename" && destinationFile.exists()) {
-                    destinationFile = findNextAvailableFile(destinationFile)
-                    Log.d(TAG, "onDuplicate=rename — using: ${destinationFile.name}")
-                } else {
-                    // Remove destination if exists (overwrite behaviour)
-                    destinationFile.delete()
-                }
-
                 // Atomic rename from temp to final destination
-                try {
-                    java.nio.file.Files.move(
-                        tempFile.toPath(),
-                        destinationFile.toPath(),
-                        java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                        java.nio.file.StandardCopyOption.ATOMIC_MOVE
-                    )
-                } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
-                    tempFile.copyTo(destinationFile, overwrite = true)
-                    tempFile.delete()
-                } catch (e: Exception) {
-                    tempFile.delete()
-                    return@downloadBlock WorkerResult.Failure("Failed to rename file: ${e.message}")
+                if (config.onDuplicate == "rename") {
+                    // TOCTOU-safe: probe filename atomically instead of pre-checking then moving.
+                    // REPLACE_EXISTING is intentionally absent — FileAlreadyExistsException is
+                    // the signal to try the next candidate, preventing one worker from silently
+                    // overwriting another concurrent download that just landed the same name.
+                    val parent = destinationFile.parentFile ?: File(".")
+                    val nameWithoutExt = destinationFile.nameWithoutExtension
+                    val ext = destinationFile.extension.let { if (it.isEmpty()) "" else ".$it" }
+                    var candidate = destinationFile
+                    var counter = 0
+                    var moved = false
+                    while (!moved) {
+                        try {
+                            java.nio.file.Files.move(
+                                tempFile.toPath(),
+                                candidate.toPath(),
+                                java.nio.file.StandardCopyOption.ATOMIC_MOVE
+                            )
+                            destinationFile = candidate
+                            moved = true
+                            Log.d(TAG, "onDuplicate=rename — using: ${candidate.name}")
+                        } catch (_: java.nio.file.FileAlreadyExistsException) {
+                            counter++
+                            candidate = if (counter <= 10_000)
+                                File(parent, "${nameWithoutExt}_$counter$ext")
+                            else
+                                File(parent, "${nameWithoutExt}_${System.currentTimeMillis()}$ext")
+                            if (counter > 10_001) {
+                                tempFile.delete()
+                                return@downloadBlock WorkerResult.Failure("onDuplicate=rename: could not find unique filename")
+                            }
+                        } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+                            // Cross-filesystem fallback: non-atomic copy; still safe for the
+                            // single-task path, best-effort for concurrent downloads.
+                            if (!candidate.exists()) {
+                                tempFile.copyTo(candidate, overwrite = false)
+                                tempFile.delete()
+                                destinationFile = candidate
+                                moved = true
+                                Log.d(TAG, "onDuplicate=rename (fallback) — using: ${candidate.name}")
+                            } else {
+                                counter++
+                                candidate = File(parent, "${nameWithoutExt}_$counter$ext")
+                                if (counter > 10_001) {
+                                    tempFile.delete()
+                                    return@downloadBlock WorkerResult.Failure("onDuplicate=rename: could not find unique filename")
+                                }
+                            }
+                        } catch (e: Exception) {
+                            tempFile.delete()
+                            return@downloadBlock WorkerResult.Failure("Failed to rename file: ${e.message}")
+                        }
+                    }
+                } else {
+                    // overwrite (default) — REPLACE_EXISTING is correct here
+                    destinationFile.delete()
+                    try {
+                        java.nio.file.Files.move(
+                            tempFile.toPath(),
+                            destinationFile.toPath(),
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                            java.nio.file.StandardCopyOption.ATOMIC_MOVE
+                        )
+                    } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+                        tempFile.copyTo(destinationFile, overwrite = true)
+                        tempFile.delete()
+                    } catch (e: Exception) {
+                        tempFile.delete()
+                        return@downloadBlock WorkerResult.Failure("Failed to rename file: ${e.message}")
+                    }
                 }
 
                 // Clean up ETag sidecar after successful download
@@ -638,27 +692,6 @@ class HttpDownloadWorker : AndroidWorker {
             )
         }
         } // end HostConcurrencyManager.withHostPermit
-    }
-
-    /** Find next available filename by appending _1, _2, … until a free slot is found.
-     *  Capped at 10,000 iterations to prevent an unbounded loop when a directory
-     *  already contains thousands of similarly-named files (e.g. photo_1.jpg … photo_50000.jpg).
-     *  Falls back to a timestamp-suffixed name so the download always completes. */
-    private fun findNextAvailableFile(file: File): File {
-        val parent = file.parentFile ?: return file
-        val nameWithoutExt = file.nameWithoutExtension
-        val ext = file.extension.let { if (it.isEmpty()) "" else ".$it" }
-        var counter = 1
-        var candidate: File
-        do {
-            candidate = File(parent, "${nameWithoutExt}_$counter$ext")
-            counter++
-        } while (candidate.exists() && counter <= 10_000)
-        // If we hit the cap, use a timestamp suffix to guarantee uniqueness.
-        if (candidate.exists()) {
-            candidate = File(parent, "${nameWithoutExt}_${System.currentTimeMillis()}$ext")
-        }
-        return candidate
     }
 
     /** Return MIME type for a filename based on its extension, or null if unknown. */

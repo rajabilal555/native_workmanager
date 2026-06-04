@@ -13,23 +13,15 @@ import 'package:native_workmanager/native_workmanager.dart';
 /// callback past what the OS would tolerate.
 void main() {
   group('issue_30 security: resolveDispatcherTimeout hardening', () {
-    test('rejects negative timeoutMs by clamping to 0 (Duration is signed)',
-        () {
-      // Dart's Duration accepts negative values, which the .timeout() API
-      // treats as immediate timeout. A hostile bridge sending -1 would
-      // effectively disable callbacks. Document the current behavior so a
-      // future hardening pass can decide whether to coerce.
+    test('rejects negative timeoutMs by falling back to 25 s', () {
       final result = resolveDispatcherTimeout({'timeoutMs': -1});
-      expect(result.inMilliseconds, -1,
-          reason: 'Negative ms passes through; if this changes, update the '
-              'Dart dispatcher .timeout() handling.');
+      expect(result.inSeconds, 25, reason: 'Negative ms falls back to 25s.');
     });
 
-    test('zero timeoutMs is honored (fail-instantly)', () {
-      // Explicit 0 means "do not wait" — legitimate use case for tests.
+    test('zero timeoutMs is rejected and falls back to 25 s', () {
       expect(
         resolveDispatcherTimeout({'timeoutMs': 0}),
-        Duration.zero,
+        const Duration(seconds: 25),
       );
     });
 

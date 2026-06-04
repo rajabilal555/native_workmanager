@@ -46,5 +46,37 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/native_workmanager_file_paths" />
         </provider>
+
+        <!--
+            androidx.startup auto-init for native_workmanager.
+
+            Merges into the host app's InitializationProvider to:
+              1. Remove the default WorkManagerInitializer (we initialize WorkManager ourselves).
+              2. Register NativeWorkManagerInitializer so it runs before Application.onCreate(),
+                 restoring callbackHandle and initializing KmpWorkManager before any pending
+                 DartWorker task fires after a process kill.
+
+            Opt-out: Add <meta-data android:name="native_workmanager.auto_init"
+                                    android:value="false" /> to your <application> block,
+            then follow the manual setup guide in doc/ANDROID_SETUP.md.
+        -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+
+            <!-- Remove WorkManager's default initializer — NativeWorkManagerInitializer
+                 handles WorkManager initialization with our custom worker factory. -->
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+
+            <!-- Register our initializer. -->
+            <meta-data
+                android:name="dev.brewkits.native_workmanager.NativeWorkManagerInitializer"
+                android:value="androidx.startup" />
+        </provider>
     </application>
 </manifest>

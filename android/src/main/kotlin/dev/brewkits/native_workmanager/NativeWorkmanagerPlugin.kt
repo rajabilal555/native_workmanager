@@ -90,13 +90,20 @@ class NativeWorkmanagerPlugin : FlutterPlugin, MethodCallHandler,
         internal const val SHARED_PREFS_NAME = "dev.brewkits.native_workmanager"
         internal const val CALLBACK_HANDLE_KEY = "callback_handle"
         internal const val REGISTER_PLUGINS_KEY = "register_plugins"
+        internal const val ENFORCE_HTTPS_KEY = "enforce_https"
+        internal const val BLOCK_PRIVATE_IPS_KEY = "block_private_ips"
         internal const val LAST_CLEANUP_KEY = "last_cleanup_timestamp"
         internal const val CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000L // 24 hours
 
         internal const val DEBUG_NOTIFICATION_CHANNEL_ID = "native_workmanager_debug"
         internal const val DEBUG_NOTIFICATION_TIMEOUT_MS = 5_000L
         internal const val DEFAULT_MAX_CONCURRENT_TASKS = 4
-        private var isSchedulerInitialized = false
+        @Volatile internal var isSchedulerInitialized = false
+        // Tracks whether KmpWorkManager.initialize() has been called (possibly by
+        // NativeWorkManagerInitializer before onAttachedToEngine). Separate from
+        // isSchedulerInitialized so that initializeScheduler() still creates
+        // NativeTaskScheduler (required for Exact/Windowed/ContentUri triggers).
+        @Volatile internal var isKmpInitialized = false
         
         // SEC-001: Global instance for system error reporting from static context
         private var sharedPluginInstance: NativeWorkmanagerPlugin? = null
@@ -227,8 +234,15 @@ class NativeWorkmanagerPlugin : FlutterPlugin, MethodCallHandler,
     private fun initializeScheduler(context: Context) {
         if (isSchedulerInitialized) return
         try {
-            val workerFactory = SimpleAndroidWorkerFactory(context)
-            KmpWorkManager.initialize(context, workerFactory, KmpWorkManagerConfig())
+            // Only call KmpWorkManager.initialize() if NativeWorkManagerInitializer hasn't
+            // already done it (isKmpInitialized=true). Always create NativeTaskScheduler —
+            // skipping it causes UninitializedPropertyAccessException on Exact/Windowed/
+            // ContentUri triggers (scheduler.enqueue() at line ~398).
+            if (!isKmpInitialized) {
+                val workerFactory = SimpleAndroidWorkerFactory(context)
+                KmpWorkManager.initialize(context, workerFactory, KmpWorkManagerConfig())
+                isKmpInitialized = true
+            }
             scheduler = NativeTaskScheduler(context)
             isSchedulerInitialized = true
         } catch (e: Exception) {

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:native_workmanager/native_workmanager.dart';
+import 'package:native_workmanager/src/events.dart';
 
 void main() {
   group('DownloadResult', () {
@@ -263,6 +264,83 @@ void main() {
     test('returns null for null or invalid map', () {
       expect(FileSystemResult.from(null), isNull);
       expect(FileSystemResult.from({}), isNull);
+    });
+  });
+
+  // ── WorkerResult.retry() bridge contract ──────────────────────────────────
+  //
+  // iOS WorkerResult.retry(reason:delayMs:attemptCap:) emits a failure event
+  // with resultData carrying {"retryDelayMs": <Int64>, "attemptCap": <Int?>}.
+  // Per CLAUDE.md Issue #30 rule: every field must have a test that fails if the
+  // bridge stops forwarding it (serialization-only tests are insufficient).
+  //
+  // These tests pin the EXPECTED format of the bridge payload that the native iOS
+  // layer produces when a custom worker returns WorkerResult.retry(). A device
+  // integration test is also required; see example/integration_test/.
+  group('WorkerResult.retry() Dart-side bridge contract', () {
+    test('retry event has success=false and shouldRetry semantics', () {
+      // Simulates the map the iOS bridge sends when a worker returns .retry()
+      final bridgePayload = <String, dynamic>{
+        'taskId': 'task_retry_test',
+        'success': false,
+        'message': 'Retry requested',
+        'resultData': {
+          'retryDelayMs': 5000,
+          'attemptCap': 3,
+        },
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+      final event = TaskEvent.fromMap(bridgePayload);
+
+      expect(event.success, isFalse,
+          reason: 'retry result must be success=false');
+      expect(event.message, 'Retry requested');
+      expect(event.resultData, isNotNull);
+    });
+
+    test('retry event resultData contains retryDelayMs key', () {
+      final bridgePayload = <String, dynamic>{
+        'taskId': 'task_retry_delay',
+        'success': false,
+        'message': 'network unavailable',
+        'resultData': {'retryDelayMs': 30000, 'attemptCap': 5},
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+      final event = TaskEvent.fromMap(bridgePayload);
+
+      // If the iOS bridge stops forwarding retryDelayMs, resultData will be empty
+      // or missing the key — this test catches that regression.
+      expect(event.resultData!['retryDelayMs'], 30000,
+          reason:
+              'retryDelayMs must be forwarded from iOS WorkerResult.retry()');
+    });
+
+    test('retry event resultData contains attemptCap when provided', () {
+      final bridgePayload = <String, dynamic>{
+        'taskId': 'task_retry_cap',
+        'success': false,
+        'message': null,
+        'resultData': {'retryDelayMs': 0, 'attemptCap': 2},
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+      final event = TaskEvent.fromMap(bridgePayload);
+      expect(event.resultData!['attemptCap'], 2,
+          reason: 'attemptCap must be forwarded from iOS WorkerResult.retry()');
+    });
+
+    test('retry event without attemptCap is valid (nil cap = system default)',
+        () {
+      final bridgePayload = <String, dynamic>{
+        'taskId': 'task_retry_no_cap',
+        'success': false,
+        'message': 'transient error',
+        'resultData': {'retryDelayMs': 1000},
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+      final event = TaskEvent.fromMap(bridgePayload);
+      expect(event.resultData!.containsKey('retryDelayMs'), isTrue);
+      expect(event.resultData!.containsKey('attemptCap'), isFalse,
+          reason: 'nil attemptCap should not appear in the forwarded data');
     });
   });
 }

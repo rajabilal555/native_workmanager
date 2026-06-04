@@ -100,14 +100,37 @@ instructions in the next section.
 
 ---
 
-### 3. Required: Killed-App Support
+### 3. Killed-App Support
 
 When Android kills your app (low memory, user swipe) and WorkManager later fires a scheduled
-task, the process restarts. For the task to succeed, WorkManager needs to be initialized
-with the plugin's custom `WorkerFactory`.
+task, the process restarts. For the task to succeed, WorkManager must be initialized with the
+plugin's custom `WorkerFactory`.
 
-The `Configuration.Provider` interface must be implemented on your host app's `Application`
-class to provide this factory during a cold process start.
+**Since v1.3.0 this is handled automatically.** The plugin ships an `androidx.startup`
+`Initializer` that runs before `Application.onCreate()`. No manual setup is required for
+the common case.
+
+#### Default (v1.3.0+) — Zero Configuration ✅
+
+Nothing to do. The plugin's manifest merge installs `NativeWorkManagerInitializer`
+automatically. It reads the persisted `callbackHandle`, restores security settings
+(`enforceHttps`, `blockPrivateIPs`), and calls `KmpWorkManager.initialize()` with the
+plugin's built-in worker factory before any pending task fires.
+
+**Opt-out** — If your app has a custom `WorkManager` configuration (e.g., you implement
+`Configuration.Provider`), add this to your `<application>` block to disable auto-init:
+
+```xml
+<meta-data
+    android:name="native_workmanager.auto_init"
+    android:value="false" />
+```
+
+Then follow the **Manual Setup** steps below.
+
+---
+
+#### Manual Setup (advanced — only when opting out of auto-init)
 
 #### Step 1 — Create (or update) your `Application` class
 
@@ -566,8 +589,8 @@ NativeWorker.httpRequest(url: '...')
 
 - [ ] `minSdk` is 26 or higher
 - [ ] Tested on Android 8, 10, 12, 14+
-- [ ] If using `DartWorker`: custom Application + `Configuration.Provider` in place
-- [ ] If using `DartWorker`: WorkManager default initializer removed from manifest
+- [ ] If using `DartWorker`: killed-app support active (auto-init default in v1.3.0+, or manual Configuration.Provider if opted out)
+- [ ] If opted out of auto-init (`native_workmanager.auto_init=false`): custom Application + WorkManager default initializer removed
 - [ ] Battery optimisation exemption UI implemented and tested
 - [ ] Tested: tasks run after app force-close (with battery opt disabled)
 - [ ] Tested: tasks run after device reboot

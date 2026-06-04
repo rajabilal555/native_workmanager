@@ -49,4 +49,17 @@ public struct WorkerResult {
     public static func failure(message: String, shouldRetry: Bool = false) -> WorkerResult {
         return WorkerResult(success: false, message: message, data: nil, shouldRetry: shouldRetry)
     }
+
+    /// Create a retry result. Parity with KMP WorkerResult.Retry (v2.5.0+).
+    ///
+    /// - Parameters:
+    ///   - reason: Why the task should be retried
+    ///   - delayMs: Suggested delay before retry (default: 0)
+    ///   - attemptCap: Max number of retry attempts (default: nil = use system default)
+    /// - Returns: WorkerResult indicating retry
+    public static func retry(reason: String? = nil, delayMs: Int64 = 0, attemptCap: Int? = nil) -> WorkerResult {
+        var data: [String: Any] = ["retryDelayMs": delayMs]
+        if let cap = attemptCap { data["attemptCap"] = cap }
+        return WorkerResult(success: false, message: reason ?? "Retry requested", data: data, shouldRetry: true)
+    }
 }

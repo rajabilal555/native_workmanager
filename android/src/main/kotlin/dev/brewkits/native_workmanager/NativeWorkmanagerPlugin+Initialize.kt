@@ -71,10 +71,12 @@ internal fun NativeWorkmanagerPlugin.handleInitialize(call: MethodCall, result: 
 
         val enforceHttps = call.argument<Boolean>("enforceHttps") ?: false
         SecurityValidator.enforceHttps = enforceHttps
+        prefs.edit().putBoolean(NativeWorkmanagerPlugin.ENFORCE_HTTPS_KEY, enforceHttps).apply()
         NativeLogger.d("enforceHttps=$enforceHttps")
 
         val blockPrivateIPs = call.argument<Boolean>("blockPrivateIPs") ?: false
         SecurityValidator.blockPrivateIPs = blockPrivateIPs
+        prefs.edit().putBoolean(NativeWorkmanagerPlugin.BLOCK_PRIVATE_IPS_KEY, blockPrivateIPs).apply()
         NativeLogger.d("blockPrivateIPs=$blockPrivateIPs")
 
         val cleanupAfterDays = call.argument<Int>("cleanupAfterDays") ?: 30
