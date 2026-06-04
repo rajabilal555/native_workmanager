@@ -368,6 +368,9 @@ internal fun NativeWorkmanagerPlugin.handleEnqueue(call: MethodCall, result: Res
             if (trigger is TaskTrigger.OneTime) {
                 val delayMs = trigger.initialDelayMs
                 // Check if expedited mode is requested for download workers (Task 6 / UIDT)
+                if (constraints.allowWhileIdle && constraints.isHeavyTask) {
+                    NativeLogger.w("Task '$taskId': allowWhileIdle=true is redundant when isHeavyTask=true — the long-running worker already bypasses Doze mode. Remove allowWhileIdle to avoid unexpected WorkManager rejection on some Android versions.")
+                }
                 val isDownloadWorker = workerClassName.contains("HttpDownloadWorker") ||
                     workerClassName.contains("ParallelHttpDownloadWorker")
                 val isExpedited = constraints.allowWhileIdle || (isDownloadWorker &&
@@ -442,7 +445,7 @@ internal suspend fun NativeWorkmanagerPlugin.cleanupTempFilesForTask(taskId: Str
         // ETag sidecar is stored next to the .tmp file (tempFile.path + .etag), which may be a
         // sentinel "__pending__.tmp.etag" in directory mode.  Delete both the savePath-relative
         // sentinel AND the savePath+suffix fallback to handle both naming conventions.
-        val tempPath = if (savePath.endsWith("/")) savePath + "__pending__.tmp" else savePath + ".tmp"
+        val tempPath = if (savePath.endsWith("/")) savePath + "__pending_${taskId}__.tmp" else savePath + ".tmp"
         for (suffix in listOf(".tmp", ".tmp.etag")) {
             for (base in listOf(savePath, tempPath).distinct()) {
                 val f = java.io.File(base + suffix)
@@ -520,10 +523,10 @@ internal fun NativeWorkmanagerPlugin.handleCancelAll(result: Result) {
                     val savePath = try {
                         org.json.JSONObject(config).optString("savePath").takeIf { it.isNotBlank() }
                     } catch (_: Exception) { null } ?: return@forEach
-                    // Directory-mode downloads use "__pending__.tmp" sentinel; file-mode use
-                    // "savePath.tmp". cleanupTempFilesForTask handles both cases correctly.
+                    // Directory-mode downloads use "__pending_<taskId>__.tmp" sentinel;
+                    // file-mode use "savePath.tmp".
                     val tempPath = if (savePath.endsWith("/"))
-                        savePath + "__pending__.tmp"
+                        savePath + "__pending_${record.taskId}__.tmp"
                     else
                         savePath + ".tmp"
                     for (suffix in listOf("", ".etag")) {
