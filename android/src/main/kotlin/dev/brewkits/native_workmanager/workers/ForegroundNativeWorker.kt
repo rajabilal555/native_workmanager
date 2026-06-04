@@ -77,6 +77,10 @@ class ForegroundNativeWorker(
                         Result.failure()
                     }
                 }
+                is WorkerResult.Retry -> {
+                    emitToBus(false, result.reason, null)
+                    Result.retry()
+                }
             }
         } catch (e: Exception) {
             NativeLogger.e("ForegroundNativeWorker: Error executing worker", e)

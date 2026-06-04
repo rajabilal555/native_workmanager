@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.8] - 2026-06-04
+
+### Changed
+- **Core**: Upgraded KMP WorkManager core dependency from v2.4.3 to v2.5.1.
+  - Android: added `WorkerResult.Retry` branch in `ForegroundNativeWorker` to satisfy sealed-class exhaustiveness (maps to `Result.retry()`).
+  - iOS: added `WorkerResult.retry(reason:delayMs:attemptCap:)` factory method for parity with the new KMP sealed variant; existing `failure(shouldRetry: true)` callers unchanged.
+  - iOS `KMPWorkManager.xcframework` rebuilt from v2.5.1 source.
+
 ## [1.2.7] - 2026-05-11
 
 ### Fixed
