@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] - 2026-06-04
+
+### Added
+- **Android Auto-Init** (`NativeWorkManagerInitializer`): Plugin now ships an `androidx.startup`
+  `Initializer` declared in its own `AndroidManifest.xml`. It runs automatically before
+  `Application.onCreate()`, restoring the `callbackHandle` from SharedPreferences and
+  initializing `KmpWorkManager` with `SimpleAndroidWorkerFactory`.
+  - **Breaking zero-config change:** `DartWorker` killed-app support now requires **no custom
+    `Application` class and no manual `AndroidManifest.xml` edits** for the common case.
+  - **Opt-out** for apps with custom WorkManager configuration: add
+    `<meta-data android:name="native_workmanager.auto_init" android:value="false" />` to
+    `<application>` in your `AndroidManifest.xml`, then follow `doc/ANDROID_SETUP.md`.
+  - `isSchedulerInitialized` flag prevents double-initialization when `onAttachedToEngine`
+    runs after the Initializer.
+
+- **Unified setup CLI** (`dart run native_workmanager:setup`): Evolves `setup_ios` into a
+  universal command covering both platforms.
+  - `--android`: validates the app manifest has no conflicts with auto-init.
+  - `--ios`: patches `Info.plist` with `UIBackgroundModes` and
+    `BGTaskSchedulerPermittedIdentifiers` (same as the legacy `setup_ios` command).
+  - `--check`: read-only validation mode — no files are written.
+  - `--help`: full usage reference.
+  - `setup_ios` executable retained for backward compatibility.
+
+- **iOS `WorkerResult.retry()`**: Added `retry(reason:delayMs:attemptCap:)` factory on
+  the Swift `WorkerResult` struct, providing parity with `WorkerResult.Retry` introduced
+  in kmpworkmanager v2.5.0.
+
+### Changed
+- **Core**: Upgraded KMP WorkManager core dependency from v2.4.3 to v2.5.1.
+  - Android: added `WorkerResult.Retry` branch in `ForegroundNativeWorker` to satisfy
+    sealed-class exhaustiveness (maps to `Result.retry()`).
+  - iOS `KMPWorkManager.xcframework` rebuilt from v2.5.1 source.
+
+- **iOS retry semantics** (`executeWorkerSync`): the retry loop now respects
+  `WorkerResult.shouldRetry`. A worker returning `failure(shouldRetry: false)` stops
+  retrying immediately instead of exhausting all `maxRetries` attempts.
+
+- **iOS `maxRetries` honored** on the direct-task execution path: `RetryConfig.from(constraintsMap:)`
+  is now called and passed to `executeWorkerSync`. Previously `Constraints.maxRetries` was
+  silently ignored on iOS (dead code).
+
+- **iOS direct-task `qos`** now read from `constraintsMap["qos"]` instead of being
+  hardcoded to `"background"`.
+
+### Fixed
+- **Android `DartCallbackWorker`**: `CancellationException` is now rethrown before the
+  outer `catch (Exception)` block. `executeDartCallback` is a suspending function; without
+  this fix, WorkManager task cancellation was silently converted to a `Failure` result.
+
+- **iOS WebSocket**: `NativeWorker.webSocket()` now throws `UnsupportedError` at call-site
+  when run on iOS. Previously the task was enqueued and silently failed with
+  "Unknown worker class" because `IosWorkerFactory` has no `WebSocketWorker` case.
+
+- **Android `handleResume`**: constraint JSON parse failure now logs a `NativeLogger.w`
+  warning instead of silently falling back to empty constraints (which could cause resumed
+  downloads to ignore `requiresNetwork` / `requiresCharging`).
+
+- **Dart `resolveDispatcherTimeout`**: values ≤ 0 (zero, negative, NaN, ±Infinity) now
+  fall back to the 25 s default. A `Duration(milliseconds: -n).timeout()` fires immediately,
+  which would kill every DartWorker. Added four regression tests.
+
+- **Android `HttpDownloadWorker` — data corruption** (directory mode): concurrent downloads
+  to the same directory now each use their own temp file (`__pending_<taskId>__.tmp`)
+  instead of sharing the hardcoded `__pending__.tmp`. Two workers writing to the same
+  temp path produced a mixed-byte file; the first to finish would rename corrupted data.
+
+- **Android `HttpDownloadWorker` — TOCTOU rename** (`onDuplicate: "rename"`): replaced
+  `findNextAvailableFile() + Files.move(REPLACE_EXISTING)` with an atomic probe loop using
+  `ATOMIC_MOVE` only (no `REPLACE_EXISTING`). A `FileAlreadyExistsException` now signals
+  the next candidate rather than silently overwriting a file from a concurrent download.
+
+- **Android constraint conflict warning**: enqueueing with `allowWhileIdle: true` and
+  `isHeavyTask: true` simultaneously now logs a `NativeLogger.w` at enqueue time. The
+  long-running worker already bypasses Doze mode, making `allowWhileIdle` redundant and
+  potentially causing WorkManager rejection on some Android versions.
+
 ## [1.2.8] - 2026-06-04
 
 ### Changed
