@@ -90,6 +90,8 @@ class NativeWorkmanagerPlugin : FlutterPlugin, MethodCallHandler,
         internal const val SHARED_PREFS_NAME = "dev.brewkits.native_workmanager"
         internal const val CALLBACK_HANDLE_KEY = "callback_handle"
         internal const val REGISTER_PLUGINS_KEY = "register_plugins"
+        internal const val ENFORCE_HTTPS_KEY = "enforce_https"
+        internal const val BLOCK_PRIVATE_IPS_KEY = "block_private_ips"
         internal const val LAST_CLEANUP_KEY = "last_cleanup_timestamp"
         internal const val CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000L // 24 hours
 

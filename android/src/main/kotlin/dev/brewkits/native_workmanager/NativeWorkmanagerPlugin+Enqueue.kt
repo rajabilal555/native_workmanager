@@ -769,12 +769,7 @@ internal fun NativeWorkmanagerPlugin.enqueueOneTimeWorkDirect(
         else -> ExistingWorkPolicy.KEEP
     }
     val request = requestBuilder.build()
-    NativeLogger.d("📋 [DIAG] WorkRequest for '$taskId': networkType=$networkType, " +
-        "requiresCharging=${constraints.requiresCharging}, " +
-        "sysConstraints=$sysConstraints, " +
-        "delayApplied=${delayMs > 0}, delayMs=$delayMs, " +
-        "workerClass=${workerClass.simpleName}, " +
-        "workerClassName=$workerClassName")
+    NativeLogger.d("Enqueuing '$taskId': worker=${workerClass.simpleName}, network=$networkType, delay=${delayMs}ms")
     WorkManager.getInstance(context).enqueueUniqueWork(taskId, workPolicy, request)
     NativeLogger.d("✅ OneTime '$taskId' enqueued via direct WorkManager (delay=${delayMs}ms, heavy=${constraints.isHeavyTask}, policy=$workPolicy)")
 }

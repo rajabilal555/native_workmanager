@@ -80,6 +80,14 @@ class NativeWorkManagerInitializer : Initializer<Unit> {
         val registerPlugins = prefs.getBoolean(NativeWorkmanagerPlugin.REGISTER_PLUGINS_KEY, false)
         FlutterEngineManager.registerPlugins = registerPlugins
 
+        // Restore security settings persisted by the last handleInitialize() call so that
+        // HTTP workers (HttpRequestWorker, HttpDownloadWorker, etc.) run with the same policy
+        // the developer configured even when the app was killed and restarted by WorkManager.
+        dev.brewkits.native_workmanager.workers.utils.SecurityValidator.enforceHttps =
+            prefs.getBoolean(NativeWorkmanagerPlugin.ENFORCE_HTTPS_KEY, false)
+        dev.brewkits.native_workmanager.workers.utils.SecurityValidator.blockPrivateIPs =
+            prefs.getBoolean(NativeWorkmanagerPlugin.BLOCK_PRIVATE_IPS_KEY, false)
+
         // Initialize the KMP WorkManager engine. Mirrors NativeWorkmanagerPlugin.initializeScheduler().
         try {
             val workerFactory = SimpleAndroidWorkerFactory(context)

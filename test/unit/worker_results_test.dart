@@ -311,7 +311,8 @@ void main() {
       // If the iOS bridge stops forwarding retryDelayMs, resultData will be empty
       // or missing the key — this test catches that regression.
       expect(event.resultData!['retryDelayMs'], 30000,
-          reason: 'retryDelayMs must be forwarded from iOS WorkerResult.retry()');
+          reason:
+              'retryDelayMs must be forwarded from iOS WorkerResult.retry()');
     });
 
     test('retry event resultData contains attemptCap when provided', () {
@@ -327,7 +328,8 @@ void main() {
           reason: 'attemptCap must be forwarded from iOS WorkerResult.retry()');
     });
 
-    test('retry event without attemptCap is valid (nil cap = system default)', () {
+    test('retry event without attemptCap is valid (nil cap = system default)',
+        () {
       final bridgePayload = <String, dynamic>{
         'taskId': 'task_retry_no_cap',
         'success': false,

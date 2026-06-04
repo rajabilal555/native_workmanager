@@ -21,6 +21,13 @@ void main(List<String> args) async {
 
   _banner();
 
+  if (!File('pubspec.yaml').existsSync()) {
+    print(
+        '⚠️  pubspec.yaml not found. Run this command from a Flutter project root.\n'
+        '   Example: cd my_flutter_app && dart run native_workmanager:setup');
+    exit(1);
+  }
+
   var hasError = false;
 
   if (doAndroid) {
@@ -73,7 +80,8 @@ Future<bool> _setupAndroid({required bool checkOnly}) async {
   // Proximity check: only warn if tools:node="remove" appears on a line within 5 lines
   // of the NativeWorkManagerInitializer declaration (avoids false positives from other
   // providers using tools:node="remove" elsewhere in the same manifest).
-  if (_elementHasAttribute(content, 'NativeWorkManagerInitializer', 'tools:node="remove"')) {
+  if (_elementHasAttribute(
+      content, 'NativeWorkManagerInitializer', 'tools:node="remove"')) {
     issues.add(
       'Your AndroidManifest.xml removes NativeWorkManagerInitializer.\n'
       '     DartWorker will not survive app kill. Remove the tools:node="remove" entry,\n'
@@ -83,10 +91,10 @@ Future<bool> _setupAndroid({required bool checkOnly}) async {
   }
 
   // Check if WorkManagerInitializer is re-enabled in the app manifest (it should stay removed).
-  if (_elementHasAttribute(
-      content, 'androidx.work.WorkManagerInitializer', 'android:value="androidx.startup"') &&
-      !_elementHasAttribute(
-          content, 'androidx.work.WorkManagerInitializer', 'tools:node="remove"')) {
+  if (_elementHasAttribute(content, 'androidx.work.WorkManagerInitializer',
+          'android:value="androidx.startup"') &&
+      !_elementHasAttribute(content, 'androidx.work.WorkManagerInitializer',
+          'tools:node="remove"')) {
     issues.add(
       'Your AndroidManifest.xml re-enables androidx.work.WorkManagerInitializer.\n'
       '     This conflicts with native_workmanager\'s auto-init. Remove the entry or\n'
@@ -142,6 +150,13 @@ Future<bool> _setupIos({required bool checkOnly}) async {
   }
 
   String content = infoPlistFile.readAsStringSync();
+
+  if (!content.contains('</dict>')) {
+    print(
+        '  ❌ Info.plist appears malformed (no closing </dict> tag). Fix the file manually.');
+    return false;
+  }
+
   final patches = <String>[];
 
   // 1. UIBackgroundModes
@@ -200,8 +215,7 @@ $idStr
         if (!checkOnly) {
           // Use a regex to match the array opening regardless of tab vs space indentation.
           content = content.replaceFirst(
-            RegExp(
-                r'<key>BGTaskSchedulerPermittedIdentifiers</key>\s*<array>'),
+            RegExp(r'<key>BGTaskSchedulerPermittedIdentifiers</key>\s*<array>'),
             '<key>BGTaskSchedulerPermittedIdentifiers</key>\n\t<array>\n\t\t<string>$id</string>',
           );
         }

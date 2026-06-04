@@ -13,11 +13,9 @@ import 'package:native_workmanager/native_workmanager.dart';
 /// callback past what the OS would tolerate.
 void main() {
   group('issue_30 security: resolveDispatcherTimeout hardening', () {
-    test('rejects negative timeoutMs by falling back to 25 s',
-        () {
+    test('rejects negative timeoutMs by falling back to 25 s', () {
       final result = resolveDispatcherTimeout({'timeoutMs': -1});
-      expect(result.inSeconds, 25,
-          reason: 'Negative ms falls back to 25s.');
+      expect(result.inSeconds, 25, reason: 'Negative ms falls back to 25s.');
     });
 
     test('zero timeoutMs is rejected and falls back to 25 s', () {
