@@ -37,7 +37,18 @@ Features:
   s.swift_version = '5.0'
 
   # KMP WorkManager Framework (kmpworkmanager v2.5.1)
-  # Tracked with Git LFS for efficient binary storage
+  # Downloaded from GitHub Releases to stay under the pub.dev 100 MB package limit.
+  s.prepare_command = <<-CMD
+    set -e
+    if [ ! -d "Frameworks/KMPWorkManager.xcframework" ]; then
+      echo "Downloading KMPWorkManager.xcframework v2.5.1..."
+      mkdir -p Frameworks
+      curl -L --retry 3 -o /tmp/KMPWorkManager.xcframework.zip \
+        "https://github.com/brewkits/native_workmanager/releases/download/v1.3.0/KMPWorkManager.xcframework.zip"
+      cd Frameworks && unzip -o /tmp/KMPWorkManager.xcframework.zip && cd ..
+      rm -f /tmp/KMPWorkManager.xcframework.zip
+    fi
+  CMD
   s.vendored_frameworks = 'Frameworks/KMPWorkManager.xcframework'
 
   # Privacy manifest for background task APIs (iOS 17+ App Store requirement)

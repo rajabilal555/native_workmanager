@@ -14,3 +14,14 @@ assets/
 coverage/
 test_results.txt
 doc/internal/
+extension/devtools/build/
+extension/devtools/.dart_tool/
+example/build/
+example/.dart_tool/
+example/android/.gradle/
+example/ios/Pods/
+example/ios/.symlinks/
+
+# XCFramework binary — distributed via GitHub Releases (downloaded by CocoaPods prepare_command).
+# Excluding keeps pub.dev package under the 100 MB limit.
+ios/Frameworks/
