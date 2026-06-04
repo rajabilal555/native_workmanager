@@ -45,9 +45,24 @@ class NativeWorkManagerInitializer : Initializer<Unit> {
             return
         }
 
-        // Already initialized by a previous onAttachedToEngine call (e.g. hot restart).
-        if (NativeWorkmanagerPlugin.isSchedulerInitialized) {
-            NativeLogger.d("NativeWorkManagerInitializer: scheduler already initialized — skipping")
+        // If the Application implements Configuration.Provider, the user manages WorkManager
+        // initialization themselves. Our auto-init would call KmpWorkManager.initialize()
+        // first (before Application.onCreate), silently overriding the user's custom
+        // WorkerFactory. Defer to their setup instead.
+        if (context.applicationContext is androidx.work.Configuration.Provider) {
+            NativeLogger.w(
+                "NativeWorkManagerInitializer: Application implements Configuration.Provider — " +
+                "skipping auto-init to preserve your custom WorkerFactory. " +
+                "Add <meta-data android:name=\"native_workmanager.auto_init\" android:value=\"false\" /> " +
+                "to silence this warning and confirm your manual setup."
+            )
+            return
+        }
+
+        // KmpWorkManager already initialized (e.g. second ContentProvider.onCreate call, which
+        // shouldn't happen in practice — android.startup only runs once per process).
+        if (NativeWorkmanagerPlugin.isKmpInitialized) {
+            NativeLogger.d("NativeWorkManagerInitializer: KmpWorkManager already initialized — skipping")
             return
         }
 
@@ -69,7 +84,10 @@ class NativeWorkManagerInitializer : Initializer<Unit> {
         try {
             val workerFactory = SimpleAndroidWorkerFactory(context)
             KmpWorkManager.initialize(context, workerFactory, KmpWorkManagerConfig())
-            NativeWorkmanagerPlugin.isSchedulerInitialized = true
+            // Signal that KmpWorkManager is initialized so initializeScheduler() skips it.
+            // Do NOT set isSchedulerInitialized here — initializeScheduler() must still run
+            // to create NativeTaskScheduler (required for Exact/Windowed/ContentUri triggers).
+            NativeWorkmanagerPlugin.isKmpInitialized = true
             NativeLogger.d("NativeWorkManagerInitializer: KmpWorkManager initialized ✅")
         } catch (e: Exception) {
             // Non-fatal: plugin will retry in onAttachedToEngine.

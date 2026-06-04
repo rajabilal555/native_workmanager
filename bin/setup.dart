@@ -49,7 +49,8 @@ void main(List<String> args) async {
     print('Next steps:');
     print('  1. flutter clean && flutter pub get');
     print('  2. Run your app and test background tasks.');
-    print('  3. See doc/ANDROID_SETUP.md / doc/IOS_BACKGROUND_LIMITS.md for advanced config.');
+    print(
+        '  3. See doc/ANDROID_SETUP.md / doc/IOS_BACKGROUND_LIMITS.md for advanced config.');
   }
 }
 
@@ -69,20 +70,25 @@ Future<bool> _setupAndroid({required bool checkOnly}) async {
   final content = manifestFile.readAsStringSync();
   final issues = <String>[];
 
-  if (content.contains('NativeWorkManagerInitializer') &&
-      content.contains('tools:node="remove"')) {
+  // Proximity check: only warn if tools:node="remove" appears on a line within 5 lines
+  // of the NativeWorkManagerInitializer declaration (avoids false positives from other
+  // providers using tools:node="remove" elsewhere in the same manifest).
+  if (_elementHasAttribute(content, 'NativeWorkManagerInitializer', 'tools:node="remove"')) {
     issues.add(
       'Your AndroidManifest.xml removes NativeWorkManagerInitializer.\n'
-      '     DartWorker will not survive app kill. Remove the tools:node="remove" entry\n'
-      '     or set <meta-data android:name="native_workmanager.auto_init" android:value="false" />\n'
+      '     DartWorker will not survive app kill. Remove the tools:node="remove" entry,\n'
+      '     or add <meta-data android:name="native_workmanager.auto_init" android:value="false" />\n'
       '     and follow the manual setup guide in doc/ANDROID_SETUP.md.',
     );
   }
 
-  if (content.contains('androidx.work.WorkManagerInitializer') &&
-      !content.contains('tools:node="remove"')) {
+  // Check if WorkManagerInitializer is re-enabled in the app manifest (it should stay removed).
+  if (_elementHasAttribute(
+      content, 'androidx.work.WorkManagerInitializer', 'android:value="androidx.startup"') &&
+      !_elementHasAttribute(
+          content, 'androidx.work.WorkManagerInitializer', 'tools:node="remove"')) {
     issues.add(
-      'Your AndroidManifest.xml re-enables WorkManagerInitializer.\n'
+      'Your AndroidManifest.xml re-enables androidx.work.WorkManagerInitializer.\n'
       '     This conflicts with native_workmanager\'s auto-init. Remove the entry or\n'
       '     opt out of auto-init via native_workmanager.auto_init=false meta-data.',
     );
@@ -101,11 +107,13 @@ Future<bool> _setupAndroid({required bool checkOnly}) async {
     final activityContent = mainActivityKt.readAsStringSync();
     if (activityContent.contains('SimpleAndroidWorkerFactory.registerWorker') ||
         activityContent.contains('setUserFactory')) {
-      print('  ✅ Custom worker registration detected in ${mainActivityKt.path}.');
+      print(
+          '  ✅ Custom worker registration detected in ${mainActivityKt.path}.');
     }
   }
 
-  print('  ℹ️  Custom workers? Call SimpleAndroidWorkerFactory.registerWorker() in\n'
+  print(
+      '  ℹ️  Custom workers? Call SimpleAndroidWorkerFactory.registerWorker() in\n'
       '     MainActivity.configureFlutterEngine() before NativeWorkManager.initialize().');
 
   return true;
@@ -155,8 +163,9 @@ Future<bool> _setupIos({required bool checkOnly}) async {
       if (!content.contains('<string>$mode</string>')) {
         patches.add('Add "$mode" to UIBackgroundModes');
         if (!checkOnly) {
+          // Regex handles both tab-indented and space-indented plists.
           content = content.replaceFirst(
-            '<key>UIBackgroundModes</key>\n\t<array>',
+            RegExp(r'<key>UIBackgroundModes</key>\s*<array>'),
             '<key>UIBackgroundModes</key>\n\t<array>\n\t\t<string>$mode</string>',
           );
         }
@@ -173,7 +182,8 @@ Future<bool> _setupIos({required bool checkOnly}) async {
   if (!content.contains('<key>BGTaskSchedulerPermittedIdentifiers</key>')) {
     patches.add('Add BGTaskSchedulerPermittedIdentifiers');
     if (!checkOnly) {
-      final idStr = identifiers.map((id) => '\t\t<string>$id</string>').join('\n');
+      final idStr =
+          identifiers.map((id) => '\t\t<string>$id</string>').join('\n');
       content = content.replaceFirst(
         '</dict>',
         '''\t<key>BGTaskSchedulerPermittedIdentifiers</key>
@@ -188,8 +198,10 @@ $idStr
       if (!content.contains('<string>$id</string>')) {
         patches.add('Add missing identifier: $id');
         if (!checkOnly) {
+          // Use a regex to match the array opening regardless of tab vs space indentation.
           content = content.replaceFirst(
-            '<key>BGTaskSchedulerPermittedIdentifiers</key>\n\t<array>',
+            RegExp(
+                r'<key>BGTaskSchedulerPermittedIdentifiers</key>\s*<array>'),
             '<key>BGTaskSchedulerPermittedIdentifiers</key>\n\t<array>\n\t\t<string>$id</string>',
           );
         }
@@ -219,6 +231,22 @@ $idStr
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/// Returns true only when [attribute] appears within ±5 lines of [element] in [content].
+/// Prevents false positives where the attribute exists on a completely unrelated XML element.
+bool _elementHasAttribute(String content, String element, String attribute) {
+  if (!content.contains(element)) return false;
+  final lines = content.split('\n');
+  for (int i = 0; i < lines.length; i++) {
+    if (lines[i].contains(element)) {
+      final start = (i - 5).clamp(0, lines.length);
+      final end = (i + 5).clamp(0, lines.length);
+      final context = lines.sublist(start, end).join('\n');
+      if (context.contains(attribute)) return true;
+    }
+  }
+  return false;
+}
 
 void _banner() {
   print('');

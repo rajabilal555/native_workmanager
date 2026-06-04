@@ -694,27 +694,6 @@ class HttpDownloadWorker : AndroidWorker {
         } // end HostConcurrencyManager.withHostPermit
     }
 
-    /** Find next available filename by appending _1, _2, … until a free slot is found.
-     *  Capped at 10,000 iterations to prevent an unbounded loop when a directory
-     *  already contains thousands of similarly-named files (e.g. photo_1.jpg … photo_50000.jpg).
-     *  Falls back to a timestamp-suffixed name so the download always completes. */
-    private fun findNextAvailableFile(file: File): File {
-        val parent = file.parentFile ?: return file
-        val nameWithoutExt = file.nameWithoutExtension
-        val ext = file.extension.let { if (it.isEmpty()) "" else ".$it" }
-        var counter = 1
-        var candidate: File
-        do {
-            candidate = File(parent, "${nameWithoutExt}_$counter$ext")
-            counter++
-        } while (candidate.exists() && counter <= 10_000)
-        // If we hit the cap, use a timestamp suffix to guarantee uniqueness.
-        if (candidate.exists()) {
-            candidate = File(parent, "${nameWithoutExt}_${System.currentTimeMillis()}$ext")
-        }
-        return candidate
-    }
-
     /** Return MIME type for a filename based on its extension, or null if unknown. */
     private fun getMimeType(fileName: String): String? =
         MimeTypeMap.getSingleton().getMimeTypeFromExtension(

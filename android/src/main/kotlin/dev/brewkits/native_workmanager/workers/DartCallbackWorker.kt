@@ -106,9 +106,11 @@ class DartCallbackWorkerWrapper(
             // Extract autoDispose flag (default: false)
             val autoDispose = json.optBoolean("autoDispose", false)
 
-            // EDGE-004: respect caller-supplied timeoutMs; default 5 minutes
-            val timeoutMs = if (json.has("timeoutMs")) json.getLong("timeoutMs")
-                            else 5 * 60 * 1000L
+            // EDGE-004: respect caller-supplied timeoutMs; default 5 minutes.
+            // withTimeout(0) / withTimeout(negative) throws TimeoutCancellationException
+            // immediately — mirror the Dart-side resolveDispatcherTimeout guard (raw > 0).
+            val rawTimeout = if (json.has("timeoutMs")) json.getLong("timeoutMs") else -1L
+            val timeoutMs = if (rawTimeout > 0) rawTimeout else 5 * 60 * 1000L
 
             Log.d(TAG, "Executing callback: $callbackId (handle: $callbackHandle, autoDispose: $autoDispose, timeoutMs: $timeoutMs)")
 
