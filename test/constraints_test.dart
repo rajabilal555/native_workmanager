@@ -40,6 +40,18 @@ void main() {
         expect(constraints.qos, QoS.userInitiated);
         expect(constraints.backoffDelayMs, 60000);
       });
+
+      test(
+          'throws AssertionError if both allowWhileIdle and isHeavyTask are true',
+          () {
+        expect(
+          () => Constraints(
+            allowWhileIdle: true,
+            isHeavyTask: true,
+          ),
+          throwsA(isA<AssertionError>()),
+        );
+      });
     });
 
     group('Static Presets', () {
@@ -76,7 +88,7 @@ void main() {
           requiresBatteryNotLow: true,
           requiresStorageNotLow: true,
           allowWhileIdle: true,
-          isHeavyTask: true,
+          isHeavyTask: false,
           qos: QoS.utility,
           exactAlarmIOSBehavior: ExactAlarmIOSBehavior.attemptBackgroundRun,
           backoffPolicy: BackoffPolicy.linear,
@@ -92,7 +104,7 @@ void main() {
         expect(map['requiresBatteryNotLow'], true);
         expect(map['requiresStorageNotLow'], true);
         expect(map['allowWhileIdle'], true);
-        expect(map['isHeavyTask'], true);
+        expect(map['isHeavyTask'], false);
         expect(map['qos'], 'utility');
         expect(map['exactAlarmIOSBehavior'], 'attemptBackgroundRun');
         expect(map['backoffPolicy'], 'linear');
@@ -152,7 +164,7 @@ void main() {
           'requiresBatteryNotLow': true,
           'requiresStorageNotLow': true,
           'allowWhileIdle': true,
-          'isHeavyTask': true,
+          'isHeavyTask': false,
           'qos': 'utility',
           'exactAlarmIOSBehavior': 'attemptBackgroundRun',
           'backoffPolicy': 'linear',
@@ -168,7 +180,7 @@ void main() {
         expect(constraints.requiresBatteryNotLow, true);
         expect(constraints.requiresStorageNotLow, true);
         expect(constraints.allowWhileIdle, true);
-        expect(constraints.isHeavyTask, true);
+        expect(constraints.isHeavyTask, false);
         expect(constraints.qos, QoS.utility);
         expect(constraints.exactAlarmIOSBehavior,
             ExactAlarmIOSBehavior.attemptBackgroundRun);

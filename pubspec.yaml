@@ -31,6 +31,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   path_provider: ^2.1.0  # For integration and performance tests only
+  path: ^1.9.0
 
 flutter:
   plugin:

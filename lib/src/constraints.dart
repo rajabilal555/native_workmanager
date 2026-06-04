@@ -850,7 +850,8 @@ class Constraints {
     this.bgTaskType,
     this.foregroundServiceType,
     this.foregroundNotificationConfig,
-  });
+  }) : assert(!(allowWhileIdle && isHeavyTask),
+            'allowWhileIdle (Expedited Work) and isHeavyTask (Foreground Service) cannot be both true as it will be rejected by Android WorkManager.');
 
   /// Configuration for the Foreground Service notification (Android only).
   ///
