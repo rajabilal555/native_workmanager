@@ -96,7 +96,7 @@ class NativeWorkmanagerPlugin : FlutterPlugin, MethodCallHandler,
         internal const val DEBUG_NOTIFICATION_CHANNEL_ID = "native_workmanager_debug"
         internal const val DEBUG_NOTIFICATION_TIMEOUT_MS = 5_000L
         internal const val DEFAULT_MAX_CONCURRENT_TASKS = 4
-        private var isSchedulerInitialized = false
+        @Volatile internal var isSchedulerInitialized = false
         
         // SEC-001: Global instance for system error reporting from static context
         private var sharedPluginInstance: NativeWorkmanagerPlugin? = null

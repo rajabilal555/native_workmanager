@@ -6,7 +6,8 @@ repository: https://github.com/brewkits/native_workmanager
 issue_tracker: https://github.com/brewkits/native_workmanager/issues
 
 executables:
-  setup_ios: setup_ios
+  setup: setup
+  setup_ios: setup_ios   # kept for backward compatibility
   migrate: migrate
 
 topics:
