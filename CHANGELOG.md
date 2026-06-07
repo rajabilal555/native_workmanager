@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.1] - 2026-06-07
+
+### Fixed
+- **iOS**: Fixed an issue where the `KMPWorkManager.xcframework` was extracted into a double-nested path (`Frameworks/Frameworks/KMPWorkManager.xcframework`) during `pod install`, causing iOS builds to fail with "Unable to find module dependency: 'KMPWorkManager'". The `prepare_command` in `native_workmanager.podspec` is now layout-agnostic (Resolves #33).
+
 ## [1.3.0] - 2026-06-04
 
 ### Added

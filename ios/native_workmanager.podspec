@@ -45,8 +45,13 @@ Features:
       mkdir -p Frameworks
       curl -L --retry 3 -o /tmp/KMPWorkManager.xcframework.zip \
         "https://github.com/brewkits/native_workmanager/releases/download/v1.3.0/KMPWorkManager.xcframework.zip"
-      cd Frameworks && unzip -o /tmp/KMPWorkManager.xcframework.zip && cd ..
-      rm -f /tmp/KMPWorkManager.xcframework.zip
+      rm -rf /tmp/kmpwm_extract
+      unzip -o /tmp/KMPWorkManager.xcframework.zip -d /tmp/kmpwm_extract
+      # Release zip may be flat or wrapped in a Frameworks/ dir - handle both.
+      SRC=$(find /tmp/kmpwm_extract -maxdepth 2 -type d -name 'KMPWorkManager.xcframework' | head -1)
+      rm -rf Frameworks/KMPWorkManager.xcframework
+      mv "$SRC" Frameworks/KMPWorkManager.xcframework
+      rm -rf /tmp/KMPWorkManager.xcframework.zip /tmp/kmpwm_extract
     fi
   CMD
   s.vendored_frameworks = 'Frameworks/KMPWorkManager.xcframework'
