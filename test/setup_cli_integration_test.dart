@@ -3,6 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
 
 void main() {
+  // Absolute path to the CLI entrypoint. The tests run the CLI with
+  // workingDirectory set to a temp mock project, so a relative 'bin/setup.dart'
+  // would resolve against the temp dir and fail with "Could not find file".
+  final setupScript =
+      path.join(Directory.current.path, 'bin', 'setup.dart');
+
   late Directory tempDir;
   late File infoPlist;
   late File androidManifest;
@@ -10,6 +16,12 @@ void main() {
   setUp(() async {
     // 1. Create mock workspace
     tempDir = await Directory.systemTemp.createTemp('native_wm_cli_test_');
+
+    // setup.dart refuses to run unless it sees a pubspec.yaml (Flutter project
+    // root guard). Provide a minimal one so the CLI proceeds.
+    await File(path.join(tempDir.path, 'pubspec.yaml')).writeAsString('''
+name: test_app
+''');
 
     // 2. Create raw Info.plist
     final iosDir = await Directory(path.join(tempDir.path, 'ios', 'Runner'))
@@ -48,7 +60,7 @@ void main() {
   test('CLI --ios must inject BGTaskSchedulerPermittedIdentifiers', () async {
     final result = await Process.run(
       'dart',
-      ['run', 'bin/setup.dart', '--ios'],
+      ['run', setupScript, '--ios'],
       workingDirectory: tempDir.path,
     );
 
@@ -69,7 +81,7 @@ void main() {
 
     final result = await Process.run(
       'dart',
-      ['run', 'bin/setup.dart', '--ios', '--check'],
+      ['run', setupScript, '--ios', '--check'],
       workingDirectory: tempDir.path,
     );
 

@@ -42,15 +42,24 @@ void main() {
       });
 
       test(
-          'throws AssertionError if both allowWhileIdle and isHeavyTask are true',
+          'issue_26: allowWhileIdle + isHeavyTask both true is accepted (no over-restrictive assert)',
           () {
+        // Per CLAUDE.md "No Over-Restrictive Assertions": the native OS can
+        // handle this combination, so the Dart API must allow it. It must NOT
+        // throw — re-adding an assert here would re-introduce Issue #26.
         expect(
           () => Constraints(
             allowWhileIdle: true,
             isHeavyTask: true,
           ),
-          throwsA(isA<AssertionError>()),
+          returnsNormally,
         );
+        const constraints = Constraints(
+          allowWhileIdle: true,
+          isHeavyTask: true,
+        );
+        expect(constraints.allowWhileIdle, true);
+        expect(constraints.isHeavyTask, true);
       });
     });
 
