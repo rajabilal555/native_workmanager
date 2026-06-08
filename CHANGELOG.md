@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.1] - 2026-06-07
 
 ### Fixed
+- **Android (critical regression, since v1.2.4)**: All file-based native workers
+  (`HttpDownload`, `HttpUpload`, `ParallelHttpDownload/Upload`, `FileCompression`,
+  `FileDecompression`, `ImageProcess`, `Crypto` hash/encrypt/decrypt, `Pdf`,
+  `WebSocket`, `FileSystem`, `MoveToSharedStorage`) failed on real devices with
+  "Invalid or unsafe file path". v1.2.4 added a blanket `"/data"` entry to
+  `SecurityValidator`'s blocked-prefix list, which rejected the app's own private
+  sandbox (`/data/data/<pkg>`, `/data/user/<n>/<pkg>` — exactly what `path_provider`
+  returns). The validator now blocks only the genuinely OS-owned sub-directories of
+  `/data` (`/data/local`, `/data/system`, `/data/misc`, `/data/app`, …) while
+  allowing the app sandbox. Path-traversal protection (canonical-path resolution)
+  and blocking of `/proc`, `/sys`, `/etc`, `/system`, `/vendor`, `/dev`, `/root`
+  are unchanged. Added `SecurityValidatorFilePathTest` (Kotlin) plus device
+  coverage in the "All Workers" integration group.
 - **iOS**: Fixed an issue where the `KMPWorkManager.xcframework` was extracted into a double-nested path (`Frameworks/Frameworks/KMPWorkManager.xcframework`) during `pod install`, causing iOS builds to fail with "Unable to find module dependency: 'KMPWorkManager'". The `prepare_command` in `native_workmanager.podspec` is now layout-agnostic (Resolves #33).
 
 ## [1.3.0] - 2026-06-04

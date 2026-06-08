@@ -107,7 +107,23 @@ object SecurityValidator {
             val canonical = File(path).canonicalPath
             // Block read/write to OS-owned directories regardless of how the path
             // was constructed. This catches symlink escapes into system space.
-            val blockedPrefixes = listOf("/proc", "/sys", "/etc", "/system", "/vendor", "/dev", "/root", "/data")
+            //
+            // We intentionally do NOT block all of "/data". An app's own private
+            // sandbox lives under "/data/data/<pkg>" and "/data/user/<n>/<pkg>" —
+            // exactly what path_provider returns (getTemporaryDirectory,
+            // getApplicationDocumentsDirectory, ...). A blanket "/data" prefix
+            // therefore rejects every legitimate app file path and breaks all file
+            // workers. Cross-app and system access under /data is already prevented
+            // by the kernel uid sandbox, so we only block the genuinely OS-owned
+            // sub-directories of /data here.
+            // Regression note: a blanket "/data" entry shipped in v1.2.4 and broke
+            // every file worker (download/upload/compress/image/crypto). Do NOT
+            // re-add a bare "/data" prefix.
+            val blockedPrefixes = listOf(
+                "/proc", "/sys", "/etc", "/system", "/vendor", "/dev", "/root",
+                "/data/local", "/data/system", "/data/misc", "/data/app",
+                "/data/dalvik-cache", "/data/anr", "/data/tombstones",
+            )
             for (blocked in blockedPrefixes) {
                 if (canonical.startsWith(blocked)) {
                     Log.e(TAG, "File path '$canonical' points to restricted system directory '$blocked'")

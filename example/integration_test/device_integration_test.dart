@@ -39,29 +39,65 @@ import 'package:native_workmanager/native_workmanager.dart';
 String _id(String name) =>
     'dit_${name}_${DateTime.now().millisecondsSinceEpoch}';
 
-/// Subscribes to [NativeWorkManager.events] and resolves when the
-/// first matching event for [taskId] arrives, or returns null on timeout.
-/// Subscribes to [NativeWorkManager.events] and resolves when the first
-/// matching event for [taskId] arrives, or returns null on timeout.
+// ──────────────────────────────────────────────────────────────
+// Shared event hub
+//
+// Earlier every _waitEvent() opened its own NativeWorkManager.events
+// subscription (plus a Future.delayed timeout timer) and cancelled it on match.
+// Across a full ~60-test run this left many lingering listeners and timers and
+// made back-to-back tests flaky (events for one test occasionally missed) and
+// eventually wedged the run. A single long-lived subscription that routes
+// terminal events to per-taskId waiters — and buffers terminal events that
+// arrive before their waiter registers — removes that whole class of races.
+// ──────────────────────────────────────────────────────────────
+
+StreamSubscription<TaskEvent>? _eventHubSub;
+final Map<String, Completer<TaskEvent?>> _eventWaiters = {};
+final Map<String, TaskEvent> _eventBuffer = {};
+
+void _startEventHub() {
+  _eventHubSub ??= NativeWorkManager.events.listen((event) {
+    // Only terminal events resolve a waiter; "started" is a lifecycle event.
+    if (event.isStarted) return;
+    final waiter = _eventWaiters.remove(event.taskId);
+    if (waiter != null && !waiter.isCompleted) {
+      waiter.complete(event);
+    } else {
+      // No waiter yet (event raced ahead of _waitEvent) or nobody is waiting:
+      // keep the latest terminal event so a slightly-late _waitEvent still sees it.
+      _eventBuffer[event.taskId] = event;
+    }
+  });
+}
+
+Future<void> _stopEventHub() async {
+  await _eventHubSub?.cancel();
+  _eventHubSub = null;
+  for (final w in _eventWaiters.values) {
+    if (!w.isCompleted) w.complete(null);
+  }
+  _eventWaiters.clear();
+  _eventBuffer.clear();
+}
+
+/// Resolves when the first terminal event for [taskId] arrives, or returns null
+/// on timeout. Backed by the shared [_startEventHub] subscription.
 ///
 /// Default timeout is 60 s — generous enough for real-device WorkManager
 /// scheduling variability while still catching genuine hangs.
 Future<TaskEvent?> _waitEvent(
   String taskId, {
   Duration timeout = const Duration(seconds: 60),
-}) async {
+}) {
+  // The event may already have arrived before this call (buffered by the hub).
+  final buffered = _eventBuffer.remove(taskId);
+  if (buffered != null) return Future.value(buffered);
+
   final completer = Completer<TaskEvent?>();
-  late StreamSubscription<TaskEvent> sub;
-  sub = NativeWorkManager.events.listen((event) {
-    // Skip "task started" lifecycle events — only complete on terminal events.
-    if (event.taskId == taskId && !completer.isCompleted && !event.isStarted) {
-      completer.complete(event);
-      sub.cancel();
-    }
-  });
+  _eventWaiters[taskId] = completer;
   Future.delayed(timeout, () {
     if (!completer.isCompleted) {
-      sub.cancel();
+      _eventWaiters.remove(taskId);
       completer.complete(null);
     }
   });
@@ -181,10 +217,22 @@ void main() {
 
     // Cancel any leftover tasks from previous runs.
     await NativeWorkManager.cancelAll();
+
+    // One long-lived event subscription for the whole suite (see _startEventHub).
+    _startEventHub();
+  });
+
+  // Drain the WorkManager queue after every test so delayed/periodic tasks
+  // enqueued by one test do not fire mid-way through a later test (which booted
+  // the Flutter engine for DartWorker callbacks and contended for resources,
+  // causing cross-test flakiness and the full-suite hang).
+  tearDown(() async {
+    await NativeWorkManager.cancelAll();
   });
 
   tearDownAll(() async {
     await NativeWorkManager.cancelAll();
+    await _stopEventHub();
     tmpDir.deleteSync(recursive: true);
   });
 

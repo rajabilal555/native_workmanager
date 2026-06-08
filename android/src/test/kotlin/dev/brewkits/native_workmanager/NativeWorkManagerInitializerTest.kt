@@ -23,6 +23,7 @@ class NativeWorkManagerInitializerTest {
         context = ApplicationProvider.getApplicationContext()
         // Reset state before each test
         NativeWorkmanagerPlugin.isSchedulerInitialized = false
+        NativeWorkmanagerPlugin.isKmpInitialized = false
         FlutterEngineManager.registerPlugins = false
     }
 
@@ -75,14 +76,23 @@ class NativeWorkManagerInitializerTest {
         initializer.create(context)
 
         // Assert
+        // The initializer signals KMP init via isKmpInitialized (so the later
+        // initializeScheduler() can skip re-initializing KmpWorkManager). It must
+        // NOT set isSchedulerInitialized — the production code deliberately leaves
+        // that false so initializeScheduler() still runs to build NativeTaskScheduler
+        // (required for Exact/Windowed/ContentUri triggers). See the explicit
+        // "Do NOT set isSchedulerInitialized here" comment in NativeWorkManagerInitializer.
         assertTrue(
-            "Initializer must set isSchedulerInitialized to true", 
+            "Initializer must set isKmpInitialized to true after KmpWorkManager.initialize()",
+            NativeWorkmanagerPlugin.isKmpInitialized
+        )
+        assertFalse(
+            "Initializer must NOT set isSchedulerInitialized — initializeScheduler() must still run",
             NativeWorkmanagerPlugin.isSchedulerInitialized
         )
         assertTrue(
             "FlutterEngineManager.registerPlugins must be read from SharedPreferences",
             FlutterEngineManager.registerPlugins
         )
-        // callbackHandle is private, so we assume if isSchedulerInitialized is true, it read it.
     }
 }
