@@ -271,8 +271,8 @@ void main() {
   //
   // iOS WorkerResult.retry(reason:delayMs:attemptCap:) emits a failure event
   // with resultData carrying {"retryDelayMs": <Int64>, "attemptCap": <Int?>}.
-  // Per CLAUDE.md Issue #30 rule: every field must have a test that fails if the
-  // bridge stops forwarding it (serialization-only tests are insufficient).
+  // Issue #30 rule: every field must have a test that fails if the bridge
+  // stops forwarding it (serialization-only tests are insufficient).
   //
   // These tests pin the EXPECTED format of the bridge payload that the native iOS
   // layer produces when a custom worker returns WorkerResult.retry(). A device
