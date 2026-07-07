@@ -21,7 +21,7 @@ This guide shows how to use Hive with native_workmanager for background data syn
 
 ```yaml
 dependencies:
-  native_workmanager: ^1.2.7
+  native_workmanager: ^1.3.2
   hive: ^2.2.3
   hive_flutter: ^1.2.1
 
@@ -66,14 +66,17 @@ void main() async {
   await Hive.openBox('app_data');
 
   // Initialize native_workmanager
-  await NativeWorkManager.initialize();
-  NativeWorkManager.registerCallback('syncToHive', syncToHiveCallback);
+  await NativeWorkManager.initialize(
+    dartWorkers: {
+      'syncToHive': syncToHiveCallback,
+    },
+  );
 
   runApp(MyApp());
 }
 
 @pragma('vm:entry-point')
-Future<void> syncToHiveCallback(String? input) async {
+Future<bool> syncToHiveCallback(Map<String, dynamic>? input) async {
   // Re-initialize Hive in background isolate
   await Hive.initFlutter();
   final box = await Hive.openBox('app_data');
@@ -91,7 +94,9 @@ Future<void> syncToHiveCallback(String? input) async {
       await box.put('user_data', data);
 
       print('✅ Data synced to Hive');
+      return true;
     }
+    return false;
   } catch (e) {
     print('❌ Sync failed: $e');
     rethrow;
@@ -127,7 +132,7 @@ Sync local Hive data to remote server.
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> uploadFromHiveCallback(String? input) async {
+Future<bool> uploadFromHiveCallback(Map<String, dynamic>? input) async {
   await Hive.initFlutter();
   final box = await Hive.openBox('pending_uploads');
 
@@ -137,7 +142,7 @@ Future<void> uploadFromHiveCallback(String? input) async {
 
     if (pendingItems.isEmpty) {
       print('No pending uploads');
-      return;
+      return true;
     }
 
     // Upload to API
@@ -154,8 +159,10 @@ Future<void> uploadFromHiveCallback(String? input) async {
       // Clear pending items after successful upload
       await box.clear();
       print('✅ Uploaded ${pendingItems.length} items');
+      return true;
     } else {
       print('❌ Upload failed: ${response.statusCode}');
+      return false;
     }
   } finally {
     await box.close();
@@ -213,7 +220,7 @@ class OfflineQueue {
 }
 
 @pragma('vm:entry-point')
-Future<void> processQueueCallback(String? input) async {
+Future<bool> processQueueCallback(Map<String, dynamic>? input) async {
   await Hive.initFlutter();
   final box = await Hive.openBox(OfflineQueue.boxName);
 
@@ -234,6 +241,7 @@ Future<void> processQueueCallback(String? input) async {
         // Keep in queue for retry
       }
     }
+    return true;
   } finally {
     await box.close();
   }
@@ -273,7 +281,7 @@ Remove old Hive records periodically.
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> cleanupHiveCallback(String? input) async {
+Future<bool> cleanupHiveCallback(Map<String, dynamic>? input) async {
   await Hive.initFlutter();
   final box = await Hive.openBox('cache');
 
@@ -304,6 +312,7 @@ Future<void> cleanupHiveCallback(String? input) async {
 
     // Compact database
     await box.compact();
+    return true;
   } finally {
     await box.close();
   }
@@ -330,7 +339,7 @@ Export Hive database and upload to cloud storage.
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> backupHiveCallback(String? input) async {
+Future<bool> backupHiveCallback(Map<String, dynamic>? input) async {
   await Hive.initFlutter();
   final box = await Hive.openBox('app_data');
 
@@ -348,6 +357,7 @@ Future<void> backupHiveCallback(String? input) async {
 
     // Note: Use native_workmanager's httpUpload to upload the file
     // This would be a separate task in a chain
+    return true;
   } finally {
     await box.close();
   }
@@ -426,7 +436,7 @@ flutter packages pub run build_runner build
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> syncUsersCallback(String? input) async {
+Future<bool> syncUsersCallback(Map<String, dynamic>? input) async {
   await Hive.initFlutter();
 
   // Register adapter
@@ -448,6 +458,7 @@ Future<void> syncUsersCallback(String? input) async {
     }
 
     print('✅ Synced ${data.length} users');
+    return true;
   } finally {
     await box.close();
   }
@@ -462,13 +473,14 @@ Future<void> syncUsersCallback(String? input) async {
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> myCallback(String? input) async {
+Future<bool> myCallback(Map<String, dynamic>? input) async {
   // ✅ Re-initialize in background isolate
   await Hive.initFlutter();
 
   final box = await Hive.openBox('data');
   // ... work with box
   await box.close();
+  return true;
 }
 ```
 
@@ -476,11 +488,12 @@ Future<void> myCallback(String? input) async {
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> myCallback(String? input) async {
+Future<bool> myCallback(Map<String, dynamic>? input) async {
   final box = await Hive.openBox('data');
 
   try {
     // Work with box
+    return true;
   } finally {
     await box.close();  // ✅ Always close
   }
@@ -509,12 +522,13 @@ if (!Hive.isAdapterRegistered(typeId)) {
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> syncCallback(String? input) async {
+Future<bool> syncCallback(Map<String, dynamic>? input) async {
   try {
     await Hive.initFlutter();
     final box = await Hive.openBox('data');
     // ... work
     await box.close();
+    return true;
   } on HiveError catch (e) {
     print('Hive error: $e');
     // Delete corrupted box and recreate
@@ -522,6 +536,7 @@ Future<void> syncCallback(String? input) async {
     final box = await Hive.openBox('data');
     // ... initialize with defaults
     await box.close();
+    return false;
   }
 }
 ```
@@ -580,10 +595,13 @@ class HiveSyncService {
     await Hive.openBox(dataBoxName);
     await Hive.openBox(queueBoxName);
 
-    await NativeWorkManager.initialize();
-    NativeWorkManager.registerCallback('syncDown', _syncDownCallback);
-    NativeWorkManager.registerCallback('syncUp', _syncUpCallback);
-    NativeWorkManager.registerCallback('cleanup', _cleanupCallback);
+    await NativeWorkManager.initialize(
+      dartWorkers: {
+        'syncDown': _syncDownCallback,
+        'syncUp': _syncUpCallback,
+        'cleanup': _cleanupCallback,
+      },
+    );
 
     // Schedule periodic sync down (API → Hive)
     await NativeWorkManager.enqueue(
@@ -610,7 +628,7 @@ class HiveSyncService {
   }
 
   @pragma('vm:entry-point')
-  static Future<void> _syncDownCallback(String? input) async {
+  static Future<bool> _syncDownCallback(Map<String, dynamic>? input) async {
     await Hive.initFlutter();
     final box = await Hive.openBox(dataBoxName);
 
@@ -625,20 +643,22 @@ class HiveSyncService {
         await box.putAll(data['items']);
         await box.put('last_sync_timestamp', DateTime.now().millisecondsSinceEpoch);
         print('✅ Synced ${data['items'].length} items from server');
+        return true;
       }
+      return false;
     } finally {
       await box.close();
     }
   }
 
   @pragma('vm:entry-point')
-  static Future<void> _syncUpCallback(String? input) async {
+  static Future<bool> _syncUpCallback(Map<String, dynamic>? input) async {
     await Hive.initFlutter();
     final box = await Hive.openBox(queueBoxName);
 
     try {
       final pendingItems = box.values.toList();
-      if (pendingItems.isEmpty) return;
+      if (pendingItems.isEmpty) return true;
 
       final response = await http.post(
         Uri.parse('https://api.example.com/sync'),
@@ -648,14 +668,16 @@ class HiveSyncService {
       if (response.statusCode == 200) {
         await box.clear();
         print('✅ Synced ${pendingItems.length} items to server');
+        return true;
       }
+      return false;
     } finally {
       await box.close();
     }
   }
 
   @pragma('vm:entry-point')
-  static Future<void> _cleanupCallback(String? input) async {
+  static Future<bool> _cleanupCallback(Map<String, dynamic>? input) async {
     await Hive.initFlutter();
     final box = await Hive.openBox(dataBoxName);
 
@@ -677,6 +699,7 @@ class HiveSyncService {
 
       await box.compact();
       print('✅ Cleaned up ${keysToDelete.length} old items');
+      return true;
     } finally {
       await box.close();
     }
@@ -699,10 +722,11 @@ class HiveSyncService {
 **Solution:** Re-initialize Hive and open box in callback:
 ```dart
 @pragma('vm:entry-point')
-Future<void> callback(String? input) async {
+Future<bool> callback(Map<String, dynamic>? input) async {
   await Hive.initFlutter();  // Always initialize
   final box = await Hive.openBox('data');
   // ...
+  return true;
 }
 ```
 

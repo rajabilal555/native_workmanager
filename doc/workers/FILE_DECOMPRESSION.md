@@ -149,7 +149,7 @@ await NativeWorkManager.enqueue(
     url: 'https://cdn.example.com/update.zip',
     savePath: '/downloads/update.zip',
   ),
-  constraints: Constraints(requiresWifi: true),
+  constraints: Constraints(requiresUnmeteredNetwork: true),
 );
 
 // Step 2: Extract (starts after download completes)

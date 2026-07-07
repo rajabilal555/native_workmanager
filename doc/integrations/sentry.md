@@ -21,7 +21,7 @@ This guide shows how to integrate Sentry with native_workmanager for background 
 
 ```yaml
 dependencies:
-  native_workmanager: ^1.2.7
+  native_workmanager: ^1.3.2
   sentry_flutter: ^7.14.0
 ```
 
@@ -54,10 +54,11 @@ Future<void> main() async {
       options.attachViewHierarchy = true;
     },
     appRunner: () async {
-      await NativeWorkManager.initialize();
-
-      // Register callbacks
-      NativeWorkManager.registerCallback('syncWithSentry', syncWithSentryCallback);
+      await NativeWorkManager.initialize(
+        dartWorkers: {
+          'syncWithSentry': syncWithSentryCallback,
+        },
+      );
 
       runApp(MyApp());
     },
@@ -75,7 +76,7 @@ Capture errors and exceptions in background tasks.
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> syncWithSentryCallback(String? input) async {
+Future<bool> syncWithSentryCallback(Map<String, dynamic>? input) async {
   // Create Sentry transaction for monitoring
   final transaction = Sentry.startTransaction(
     'background-sync',
@@ -107,6 +108,7 @@ Future<void> syncWithSentryCallback(String? input) async {
 
     // Mark transaction as success
     transaction.status = SpanStatus.ok();
+    return true;
   } catch (error, stackTrace) {
     // Mark transaction as error
     transaction.status = SpanStatus.internalError();
@@ -145,7 +147,7 @@ Track performance of background tasks with spans.
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> performanceMonitoredCallback(String? input) async {
+Future<bool> performanceMonitoredCallback(Map<String, dynamic>? input) async {
   final transaction = Sentry.startTransaction(
     'complex-sync',
     'task',
@@ -179,6 +181,7 @@ Future<void> performanceMonitoredCallback(String? input) async {
     await saveSpan.finish();
 
     transaction.status = SpanStatus.ok();
+    return true;
   } catch (error, stackTrace) {
     transaction.status = SpanStatus.internalError();
     await Sentry.captureException(error, stackTrace: stackTrace);
@@ -213,7 +216,7 @@ Add detailed breadcrumbs for context when errors occur.
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> breadcrumbCallback(String? input) async {
+Future<bool> breadcrumbCallback(Map<String, dynamic>? input) async {
   final transaction = Sentry.startTransaction('sync-with-breadcrumbs', 'task');
 
   try {
@@ -274,6 +277,7 @@ Future<void> breadcrumbCallback(String? input) async {
     ));
 
     transaction.status = SpanStatus.ok();
+    return true;
   } catch (error, stackTrace) {
     Sentry.addBreadcrumb(Breadcrumb(
       message: 'Task failed: ${error.toString()}',
@@ -305,7 +309,7 @@ Add user and custom context to background tasks.
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> contextAwareCallback(String? input) async {
+Future<bool> contextAwareCallback(Map<String, dynamic>? input) async {
   final transaction = Sentry.startTransaction('user-sync', 'task');
 
   try {
@@ -344,6 +348,7 @@ Future<void> contextAwareCallback(String? input) async {
     await performUserSync(user);
 
     transaction.status = SpanStatus.ok();
+    return true;
   } catch (error, stackTrace) {
     transaction.status = SpanStatus.internalError();
     await Sentry.captureException(error, stackTrace: stackTrace);
@@ -453,49 +458,40 @@ Monitor task lifecycle with Sentry.
 ```dart
 void setupTaskMonitoring() {
   NativeWorkManager.events.listen((event) {
-    // Add breadcrumb for task state changes
+    // TaskEvent has no `state`/`progress`/`attemptCount` fields — use
+    // `success`/`isStarted`/`message`/`errorCode`/`resultData` instead.
+    // Add breadcrumb for task lifecycle changes
     Sentry.addBreadcrumb(Breadcrumb(
-      message: 'Task ${event.taskId}: ${event.state}',
+      message: 'Task ${event.taskId}: '
+          '${event.isStarted ? "started" : (event.success ? "succeeded" : "failed")}',
       category: 'task.lifecycle',
-      level: _sentryLevelFromState(event.state),
+      level: _sentryLevelFromEvent(event),
       data: {
         'task_id': event.taskId,
-        'state': event.state.toString(),
-        'progress': event.progress,
-        'attempt': event.attemptCount,
+        'is_started': event.isStarted,
+        'success': event.success,
+        'error_code': event.errorCode,
       },
     ));
 
-    // Capture failed tasks
-    if (event.state == TaskState.failed) {
+    // Capture failed tasks (isStarted=false means the task finished)
+    if (!event.isStarted && !event.success) {
       Sentry.captureMessage(
         'Background task failed: ${event.taskId}',
         level: SentryLevel.error,
         hint: Hint.withMap({
           'task_id': event.taskId,
-          'error': event.error,
-          'attempt': event.attemptCount,
+          'message': event.message,
+          'error_code': event.errorCode,
         }),
       );
     }
   });
 }
 
-SentryLevel _sentryLevelFromState(TaskState state) {
-  switch (state) {
-    case TaskState.enqueued:
-      return SentryLevel.info;
-    case TaskState.running:
-      return SentryLevel.info;
-    case TaskState.succeeded:
-      return SentryLevel.info;
-    case TaskState.failed:
-      return SentryLevel.error;
-    case TaskState.cancelled:
-      return SentryLevel.warning;
-    default:
-      return SentryLevel.debug;
-  }
+SentryLevel _sentryLevelFromEvent(TaskEvent event) {
+  if (event.isStarted) return SentryLevel.info;
+  return event.success ? SentryLevel.info : SentryLevel.error;
 }
 ```
 
@@ -507,12 +503,13 @@ SentryLevel _sentryLevelFromState(TaskState state) {
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> callback(String? input) async {
+Future<bool> callback(Map<String, dynamic>? input) async {
   final transaction = Sentry.startTransaction('task', 'task');
 
   try {
     await work();
     transaction.status = SpanStatus.ok();
+    return true;
   } catch (e, s) {
     transaction.status = SpanStatus.internalError();
     await Sentry.captureException(e, stackTrace: s);
@@ -554,11 +551,13 @@ Sentry.configureScope((scope) {
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> offlineAwareCallback(String? input) async {
+Future<bool> offlineAwareCallback(Map<String, dynamic>? input) async {
   final transaction = Sentry.startTransaction('offline-sync', 'task');
 
   try {
     await sync();
+    transaction.status = SpanStatus.ok();
+    return true;
   } on SocketException {
     // Don't spam Sentry with network errors
     Sentry.addBreadcrumb(Breadcrumb(
@@ -566,7 +565,8 @@ Future<void> offlineAwareCallback(String? input) async {
       level: SentryLevel.warning,
     ));
     transaction.status = SpanStatus.unavailable();
-    // Don't rethrow, just skip
+    // Report failure (not an exception) so Constraints.maxRetries applies.
+    return false;
   } catch (e, s) {
     transaction.status = SpanStatus.internalError();
     await Sentry.captureException(e, stackTrace: s);
@@ -706,10 +706,11 @@ Future<void> main() async {
       };
     },
     appRunner: () async {
-      await NativeWorkManager.initialize();
-
-      // Register callbacks
-      NativeWorkManager.registerCallback('monitoredSync', monitoredSyncCallback);
+      await NativeWorkManager.initialize(
+        dartWorkers: {
+          'monitoredSync': monitoredSyncCallback,
+        },
+      );
 
       // Setup task lifecycle monitoring
       _setupTaskMonitoring();
@@ -733,17 +734,18 @@ Future<void> main() async {
 void _setupTaskMonitoring() {
   NativeWorkManager.events.listen((event) {
     Sentry.addBreadcrumb(Breadcrumb(
-      message: 'Task ${event.taskId}: ${event.state}',
+      message: 'Task ${event.taskId}: '
+          '${event.isStarted ? "started" : (event.success ? "succeeded" : "failed")}',
       category: 'task',
-      level: _levelFromState(event.state),
+      level: _levelFromEvent(event),
       data: {
         'task_id': event.taskId,
-        'state': event.state.toString(),
-        'progress': event.progress,
+        'success': event.success,
+        'is_started': event.isStarted,
       },
     ));
 
-    if (event.state == TaskState.failed) {
+    if (!event.isStarted && !event.success) {
       Sentry.captureMessage(
         'Task failed: ${event.taskId}',
         level: SentryLevel.error,
@@ -752,19 +754,13 @@ void _setupTaskMonitoring() {
   });
 }
 
-SentryLevel _levelFromState(TaskState state) {
-  switch (state) {
-    case TaskState.failed:
-      return SentryLevel.error;
-    case TaskState.cancelled:
-      return SentryLevel.warning;
-    default:
-      return SentryLevel.info;
-  }
+SentryLevel _levelFromEvent(TaskEvent event) {
+  if (event.isStarted) return SentryLevel.info;
+  return event.success ? SentryLevel.info : SentryLevel.error;
 }
 
 @pragma('vm:entry-point')
-Future<void> monitoredSyncCallback(String? input) async {
+Future<bool> monitoredSyncCallback(Map<String, dynamic>? input) async {
   final transaction = Sentry.startTransaction(
     'background-sync',
     'task',
@@ -803,6 +799,7 @@ Future<void> monitoredSyncCallback(String? input) async {
     ));
 
     transaction.status = SpanStatus.ok();
+    return true;
   } catch (error, stackTrace) {
     transaction.status = SpanStatus.internalError();
 

@@ -334,7 +334,7 @@ await NativeWorkManager.enqueue(
     requiresNetwork: true,
     backoffPolicy: BackoffPolicy.exponential,  // Exponential backoff
     backoffDelayMs: 30000,  // Start with 30s delay
-    maxAttempts: 5,  // Retry up to 5 times
+    maxRetries: 5,  // Retry up to 5 times
   ),
 );
 ```

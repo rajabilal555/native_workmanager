@@ -1,4 +1,4 @@
-lam # Dio Integration Guide
+# Dio Integration Guide
 
 Integration guide for using native_workmanager with **Dio** - the powerful HTTP client for Dart.
 
@@ -21,7 +21,7 @@ This guide shows how to use Dio with native_workmanager for background HTTP task
 
 ```yaml
 dependencies:
-  native_workmanager: ^1.2.7
+  native_workmanager: ^1.3.2
   dio: ^5.4.0
 ```
 
@@ -63,16 +63,22 @@ import 'package:dio/dio.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NativeWorkManager.initialize();
 
-  // Register Dio-based callback
-  NativeWorkManager.registerCallback('dioSync', dioSyncCallback);
+  // Dart workers are registered via the `dartWorkers` map, not a separate
+  // registration call — the map key is the `callbackId` used by DartWorker.
+  await NativeWorkManager.initialize(
+    dartWorkers: {
+      'dioSync': dioSyncCallback,
+    },
+  );
 
   runApp(MyApp());
 }
 
+// DartWorkerCallback signature: Future<bool> Function(Map<String, dynamic>? input)
+// — return true on success, false on failure (throwing also counts as failure).
 @pragma('vm:entry-point')
-Future<void> dioSyncCallback(String? input) async {
+Future<bool> dioSyncCallback(Map<String, dynamic>? input) async {
   final dio = Dio(BaseOptions(
     baseUrl: 'https://api.example.com',
     connectTimeout: Duration(seconds: 30),
@@ -93,9 +99,10 @@ Future<void> dioSyncCallback(String? input) async {
     });
 
     print('Sync successful: ${response.data}');
+    return true;
   } catch (e) {
     print('Sync failed: $e');
-    rethrow;
+    return false;
   }
 }
 ```
@@ -161,12 +168,13 @@ class AuthInterceptor extends Interceptor {
 }
 
 @pragma('vm:entry-point')
-Future<void> authSyncCallback(String? input) async {
+Future<bool> authSyncCallback(Map<String, dynamic>? input) async {
   final dio = Dio();
   dio.interceptors.add(AuthInterceptor());
 
   final response = await dio.get('https://api.example.com/user/data');
   print('Data synced: ${response.data}');
+  return response.statusCode == 200;
 }
 ```
 
@@ -191,7 +199,7 @@ Download files with Dio progress tracking.
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> downloadWithDioCallback(String? input) async {
+Future<bool> downloadWithDioCallback(Map<String, dynamic>? input) async {
   final dio = Dio();
 
   await dio.download(
@@ -209,6 +217,7 @@ Future<void> downloadWithDioCallback(String? input) async {
   );
 
   print('Download complete!');
+  return true;
 }
 ```
 
@@ -220,7 +229,7 @@ await NativeWorkManager.enqueue(
   trigger: TaskTrigger.oneTime(),
   worker: DartWorker(callbackId: 'downloadWithDio'),
   constraints: Constraints(
-    requiresWifi: true,  // Large download, use WiFi only
+    requiresUnmeteredNetwork: true,  // Large download, use WiFi only
   ),
 );
 ```
@@ -237,7 +246,7 @@ Upload files with additional form fields using Dio.
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> uploadWithDioCallback(String? input) async {
+Future<bool> uploadWithDioCallback(Map<String, dynamic>? input) async {
   final dio = Dio();
 
   final formData = FormData.fromMap({
@@ -265,6 +274,7 @@ Future<void> uploadWithDioCallback(String? input) async {
   );
 
   print('Upload complete: ${response.data}');
+  return response.statusCode == 200;
 }
 ```
 
@@ -283,7 +293,7 @@ import 'package:dio/dio.dart';
 import 'package:dio_retry/dio_retry.dart';  // Add to pubspec.yaml
 
 @pragma('vm:entry-point')
-Future<void> retryableRequestCallback(String? input) async {
+Future<bool> retryableRequestCallback(Map<String, dynamic>? input) async {
   final dio = Dio();
 
   // Add retry interceptor
@@ -302,6 +312,7 @@ Future<void> retryableRequestCallback(String? input) async {
 
   final response = await dio.get('https://api.example.com/data');
   print('Data fetched: ${response.data}');
+  return response.statusCode == 200;
 }
 ```
 
@@ -312,11 +323,11 @@ await NativeWorkManager.enqueue(
   taskId: 'sync',
   trigger: TaskTrigger.oneTime(),
   worker: DartWorker(callbackId: 'retryableRequest'),
-  backoffPolicy: BackoffPolicy(
-    delay: Duration(seconds: 10),
-    backoffType: BackoffType.exponential,
+  constraints: Constraints(
+    backoffPolicy: BackoffPolicy.exponential,
+    backoffDelayMs: 10000,
+    maxRetries: 5,
   ),
-  maxAttempts: 5,
 );
 ```
 
@@ -329,9 +340,10 @@ await NativeWorkManager.enqueue(
 ```dart
 // ❌ Avoid (uses Dio in Dart worker - Flutter Engine overhead)
 @pragma('vm:entry-point')
-Future<void> simpleSyncCallback(String? input) async {
+Future<bool> simpleSyncCallback(Map<String, dynamic>? input) async {
   final dio = Dio();
-  await dio.get('https://api.example.com/sync');
+  final response = await dio.get('https://api.example.com/sync');
+  return response.statusCode == 200;
 }
 
 // ✅ Better (native worker - no overhead)
@@ -348,11 +360,12 @@ await NativeWorkManager.enqueue(
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> dioCallback(String? input) async {
+Future<bool> dioCallback(Map<String, dynamic>? input) async {
   final dio = Dio();
 
   try {
-    await dio.get('https://api.example.com/data');
+    final response = await dio.get('https://api.example.com/data');
+    return response.statusCode == 200;
   } finally {
     dio.close();  // Always close Dio instance
   }
@@ -376,12 +389,13 @@ await NativeWorkManager.enqueue(
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> dioCallback(String? input) async {
+Future<bool> dioCallback(Map<String, dynamic>? input) async {
   final dio = Dio();
 
   try {
     final response = await dio.get('https://api.example.com/data');
     print('Success: ${response.data}');
+    return true;
   } on DioException catch (e) {
     if (e.type == DioExceptionType.connectionTimeout) {
       print('Connection timeout');
@@ -390,7 +404,7 @@ Future<void> dioCallback(String? input) async {
     } else if (e.response?.statusCode == 401) {
       print('Unauthorized');
     }
-    rethrow;  // Let native_workmanager retry
+    return false;  // native_workmanager retries based on Constraints.maxRetries
   }
 }
 ```
@@ -417,11 +431,12 @@ import 'package:dio/dio.dart';
 
 class SyncService {
   static Future<void> initialize() async {
-    await NativeWorkManager.initialize();
-
-    // Register Dio callbacks
-    NativeWorkManager.registerCallback('dioSync', _dioSyncCallback);
-    NativeWorkManager.registerCallback('dioUpload', _dioUploadCallback);
+    await NativeWorkManager.initialize(
+      dartWorkers: {
+        'dioSync': _dioSyncCallback,
+        'dioUpload': _dioUploadCallback,
+      },
+    );
 
     // Schedule periodic sync (native worker - lightweight)
     await NativeWorkManager.enqueue(
@@ -444,7 +459,7 @@ class SyncService {
   }
 
   @pragma('vm:entry-point')
-  static Future<void> _dioSyncCallback(String? input) async {
+  static Future<bool> _dioSyncCallback(Map<String, dynamic>? input) async {
     final dio = _createDio();
 
     try {
@@ -452,21 +467,23 @@ class SyncService {
         'timestamp': DateTime.now().toIso8601String(),
       });
       print('Complex sync complete: ${response.data}');
+      return response.statusCode == 200;
     } finally {
       dio.close();
     }
   }
 
   @pragma('vm:entry-point')
-  static Future<void> _dioUploadCallback(String? input) async {
+  static Future<bool> _dioUploadCallback(Map<String, dynamic>? input) async {
     final dio = _createDio();
 
     try {
       final formData = FormData.fromMap({
-        'file': await MultipartFile.fromFile(input!),
+        'file': await MultipartFile.fromFile(input!['filePath'] as String),
       });
-      await dio.post('/upload', data: formData);
+      final response = await dio.post('/upload', data: formData);
       print('Upload complete');
+      return response.statusCode == 200;
     } finally {
       dio.close();
     }

@@ -142,7 +142,7 @@ Updated dependencies file:
 dependencies:
   flutter:
     sdk: flutter
-  native_workmanager: ^1.2.7  # Replaced workmanager
+  native_workmanager: ^1.3.2  # Replaced workmanager
 ```
 
 **Usage:**
@@ -328,14 +328,18 @@ void callbackDispatcher() {
 **After (Manual - Use DartWorker):**
 ```dart
 void main() async {
-  await NativeWorkManager.initialize();
-  NativeWorkManager.registerCallback('process', processCallback);
+  await NativeWorkManager.initialize(
+    dartWorkers: {
+      'process': processCallback,
+    },
+  );
 }
 
 @pragma('vm:entry-point')
-Future<void> processCallback(String? input) async {
+Future<bool> processCallback(Map<String, dynamic>? input) async {
   // Your existing logic
-  final result = await processData();
+  await processData();
+  return true;
 }
 
 // Later:

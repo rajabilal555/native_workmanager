@@ -28,7 +28,7 @@ await NativeWorkManager
   .beginWith(TaskRequest(id: 'dl',
     worker: NativeWorker.httpDownload(url: photoUrl, savePath: '/tmp/raw.jpg')))
   .then(TaskRequest(id: 'resize',
-    worker: NativeWorker.imageResize(inputPath: '/tmp/raw.jpg',
+    worker: NativeWorker.imageProcess(inputPath: '/tmp/raw.jpg',
       outputPath: '/tmp/thumb.jpg', maxWidth: 512)))
   .then(TaskRequest(id: 'upload',
     worker: NativeWorker.httpUpload(url: uploadUrl, filePath: '/tmp/thumb.jpg')))
@@ -46,7 +46,7 @@ No boilerplate. No native code to write. No `AndroidManifest.xml` changes. Each 
 
 ```yaml
 dependencies:
-  native_workmanager: ^1.3.1
+  native_workmanager: ^1.3.2
 ```
 
 **2. Initialize once in `main()`:**
@@ -129,13 +129,14 @@ All workers run natively. No Flutter Engine. No setup beyond `initialize()`.
 
 | Category | Workers |
 |----------|---------|
-| **HTTP** | `httpDownload` (resumable), `httpUpload` (multipart), `parallelDownload` (chunked), `httpSync`, `httpRequest` |
-| **Image** | `imageResize`, `imageCrop`, `imageConvert`, `imageThumbnail` — all EXIF-aware |
-| **PDF** | `pdfMerge`, `pdfCompress`, `imagesToPdf` |
-| **Crypto** | `cryptoEncrypt` (AES-256-GCM), `cryptoDecrypt`, `cryptoHash` (SHA-256/512), `hmacSign` |
-| **File** | `fileCopy`, `fileMove`, `fileDelete`, `fileList` |
+| **HTTP** | `httpDownload` (resumable), `httpUpload` (multipart), `multiUpload`, `parallelHttpDownload` (chunked), `httpSync`, `httpRequest` |
+| **Image** | `imageProcess` — resize, crop, convert format, thumbnail (all via one EXIF-aware worker) |
+| **PDF** | `pdfMerge`, `pdfCompress`, `pdfFromImages` |
+| **Crypto** | `cryptoEncrypt` (AES-256-GCM), `cryptoDecrypt`, `hashFile` / `hashString` (SHA-256/512) |
+| **File** | `fileCopy`, `fileMove`, `fileDelete`, `fileList`, `fileMkdir`, `fileCompress`, `fileDecompress` |
 | **Storage** | `moveToSharedStorage` (Android MediaStore / iOS Files app) |
 | **Real-time** | `webSocket` — Android |
+| **Custom** | `custom` (bring your own native worker class), `DartWorker` (opt-in Dart callback) |
 
 ---
 
@@ -406,7 +407,7 @@ await NativeWorkManager.enqueue(
 await NativeWorkManager
   .beginWith(TaskRequest(
     id: 'compress',
-    worker: NativeWorker.imageResize(
+    worker: NativeWorker.imageProcess(
       inputPath: photoPath,
       outputPath: '/tmp/photo_compressed.jpg',
       maxWidth: 1920,

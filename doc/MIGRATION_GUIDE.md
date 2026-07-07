@@ -152,7 +152,7 @@ dependencies:
 **After:**
 ```yaml
 dependencies:
-  native_workmanager: ^1.2.2
+  native_workmanager: ^1.3.2
 ```
 
 **Then run:**
@@ -368,15 +368,15 @@ Workmanager().registerOneOffTask(
 ```dart
 await NativeWorkManager.enqueue(
   taskId: 'upload-task',
-  trigger: TaskTrigger.oneTime(),
+  trigger: TaskTrigger.oneTime(Duration(seconds: 30)),
   worker: NativeWorker.httpUpload(
     url: 'https://api.example.com/upload',
     filePath: '/path/to/file',
   ),
-  retryPolicy: RetryPolicy(
+  constraints: Constraints(
     backoffPolicy: BackoffPolicy.exponential,
-    initialDelay: Duration(seconds: 30),
-    maxAttempts: 3,
+    backoffDelayMs: 30000,
+    maxRetries: 3,
   ),
 );
 ```
@@ -548,7 +548,7 @@ await NativeWorkManager.enqueue(
     filePath: '/path/to/file.jpg',
     headers: {'Authorization': 'Bearer TOKEN'},
   ),
-  retryPolicy: RetryPolicy(maxAttempts: 3), // Built-in retry!
+  constraints: Constraints(maxRetries: 3), // Built-in retry!
 );
 ```
 
@@ -865,7 +865,7 @@ Use this checklist to track your migration progress:
 ```yaml
 dependencies:
   workmanager: ^0.5.0
-  native_workmanager: ^1.2.2
+  native_workmanager: ^1.3.2
 ```
 
 Migrate tasks one at a time, then remove workmanager when done.

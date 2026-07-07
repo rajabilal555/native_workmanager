@@ -275,7 +275,7 @@ await NativeWorkManager.enqueue(
       UploadFile(filePath: '/processed/upload_ready.jpg', fieldName: 'photo'),
     ],
   ),
-  constraints: Constraints(requiresWifi: true),
+  constraints: Constraints(requiresUnmeteredNetwork: true),
 );
 ```
 
