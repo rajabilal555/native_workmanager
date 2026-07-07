@@ -75,6 +75,12 @@ await NativeWorkManager.enqueue(
 dart run native_workmanager:setup_ios
 ```
 
+> **Flutter 3.38+ / UIScene apps:** fully supported since v1.3.2 — the plugin
+> registers its BGTask launch handlers in an ObjC `+load` hook, before the app
+> finishes launching, so the new UIScene plugin-registration timing cannot crash
+> it (see [iOS Setup Guide §4b](doc/IOS_SETUP_GUIDE.md) and Issue #36). No extra
+> AppDelegate code is required on either the old or the new template.
+
 ---
 
 ## Why developers switch from `workmanager`

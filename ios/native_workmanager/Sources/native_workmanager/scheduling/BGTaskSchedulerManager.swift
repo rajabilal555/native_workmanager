@@ -2,6 +2,12 @@
 import Foundation
 import KMPWorkManager
 import BackgroundTasks
+// In the SPM build the +load registrar (Issue #36) lives in a separate
+// single-language target; in the CocoaPods build it compiles into this same
+// module and is visible through the umbrella header, so no import exists.
+#if canImport(native_workmanager_objc)
+import native_workmanager_objc
+#endif
 
 /// Manager for iOS background task scheduling using BGTaskScheduler.
 ///
@@ -102,28 +108,66 @@ class BGTaskSchedulerManager {
 
     // MARK: - Registration
 
-    /// Register background task handlers.
+    /// Guards `registerHandlers()` idempotency. `register(with:)` runs once for
+    /// the main engine and again when GeneratedPluginRegistrant is re-run on the
+    /// headless background engine (FlutterEngineManager) — the second OS-level
+    /// registration would throw NSInternalInconsistencyException.
+    private var handlersRegistered = false
+
+    /// Attach BGTask handlers for this plugin's identifiers.
     ///
-    /// Call this in AppDelegate's `application(_:didFinishLaunchingWithOptions:)`
-    /// BEFORE the app finishes launching.
+    /// Issue #36: the OS-level `BGTaskScheduler.register` call already happened
+    /// in `NWMBGTaskRegistrar.load()` — before the app finished launching, as
+    /// Apple requires. This method only attaches the Swift handlers and drains
+    /// any BGTask buffered during a cold-start background launch. It is safe to
+    /// call at ANY point in the app lifecycle, from any Flutter template:
+    /// registration failures are caught in ObjC and logged, never thrown.
     func registerHandlers() {
-        // Register processing task handler
-        BGTaskScheduler.shared.register(
-            forTaskWithIdentifier: BGTaskSchedulerManager.defaultTaskIdentifier,
-            using: nil
-        ) { [weak self] task in
-            self?.handleBackgroundTask(task as! BGProcessingTask)
+        let alreadyRegistered: Bool = queue.sync {
+            if handlersRegistered { return true }
+            handlersRegistered = true
+            return false
+        }
+        guard !alreadyRegistered else {
+            NativeLogger.d("BGTaskSchedulerManager: Handlers already attached — skipping")
+            return
         }
 
-        // Register refresh task handler
-        BGTaskScheduler.shared.register(
-            forTaskWithIdentifier: BGTaskSchedulerManager.refreshTaskIdentifier,
-            using: nil
-        ) { [weak self] task in
+        attachHandler(identifier: BGTaskSchedulerManager.defaultTaskIdentifier) { [weak self] task in
+            self?.handleBackgroundTask(task as! BGProcessingTask)
+        }
+        attachHandler(identifier: BGTaskSchedulerManager.refreshTaskIdentifier) { [weak self] task in
             self?.handleAppRefreshTask(task as! BGAppRefreshTask)
         }
 
-        NativeLogger.d("BGTaskSchedulerManager: Handlers registered")
+        NativeLogger.d("BGTaskSchedulerManager: Handlers attached")
+    }
+
+    /// Ensures the identifier is registered with the OS (no-op if `+load`
+    /// already did it, retried safely otherwise) and installs the handler.
+    /// Never calls `BGTaskScheduler.register` directly — only NWMBGTaskRegistrar
+    /// may do that, because Swift cannot catch the NSExceptions it throws.
+    private func attachHandler(identifier: String, handler: @escaping (BGTask) -> Void) {
+        guard NWMBGTaskRegistrar.registerIdentifierIfNeeded(identifier) else {
+            NativeWorkmanagerPlugin.emitSystemError(
+                code: "BGTASK_REGISTRATION_FAILED",
+                message: "BGTask launch handler for '\(identifier)' could not be registered. " +
+                    "Background execution for it is disabled this launch. " +
+                    "If your app uses the Flutter 3.38+ UIScene template, ensure the plugin's " +
+                    "+load registrar is linked, or call NativeWorkmanagerPlugin.registerBGTaskHandlers() " +
+                    "in application(_:didFinishLaunchingWithOptions:). See doc/TROUBLESHOOTING.md (Issue #36)."
+            )
+            return
+        }
+        NWMBGTaskRegistrar.setTaskHandler(handler, forIdentifier: identifier)
+    }
+
+    /// Diagnostic snapshot exposed via the `debugBGTaskRegistration` method-channel
+    /// call — consumed by the issue_36 device regression test.
+    func registrationDebugInfo() -> [String: Any] {
+        var info: [String: Any] = NWMBGTaskRegistrar.debugSnapshot() as [String: Any]
+        info["handlersAttached"] = queue.sync { handlersRegistered }
+        return info
     }
 
     // MARK: - Scheduling

@@ -2,13 +2,19 @@ import Flutter
 import UIKit
 import native_workmanager  // For IosWorkerFactory and BackgroundSessionManager
 
+// The example app uses the Flutter 3.38+ UIScene lifecycle template
+// (FlutterImplicitEngineDelegate + SceneDelegate + scene manifest in Info.plist).
+// On this template plugins register in didInitializeImplicitFlutterEngine — AFTER
+// application(_:didFinishLaunchingWithOptions:) has returned. This is exactly the
+// lifecycle that crashed BGTaskScheduler registration in issue #36, so the device
+// test suite must keep running on it as regression coverage.
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    // Register custom workers BEFORE GeneratedPluginRegistrant.
+    // Register custom workers as early as possible (before any plugin code runs).
     // IosWorker and WorkerResult are re-exported from native_workmanager via typealiases
     // in Runner/IosWorker.swift and Runner/WorkerResult.swift.
     IosWorkerFactory.registerWorker(className: "ImageCompressWorker") {
@@ -16,11 +22,17 @@ import native_workmanager  // For IosWorkerFactory and BackgroundSessionManager
     }
     // Add more custom workers here following the same pattern.
 
-    GeneratedPluginRegistrant.register(with: self)
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
 
-    // Setup metrics channel using registrar to avoid deprecated window/rootViewController usage
-    // in didFinishLaunchingWithOptions.
-    let registrar = self.registrar(forPlugin: "dev.brewkits.native_workmanager.example.MetricsPlugin")!
+  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+
+    // Setup metrics channel on the implicit engine's registry (the pre-3.38
+    // self.registrar(forPlugin:) path is not available before the implicit
+    // engine exists on this template).
+    let registrar = engineBridge.pluginRegistry
+      .registrar(forPlugin: "dev.brewkits.native_workmanager.example.MetricsPlugin")!
     let metricsChannel = FlutterMethodChannel(
       name: "dev.brewkits.native_workmanager.example/metrics",
       binaryMessenger: registrar.messenger()
@@ -38,8 +50,6 @@ import native_workmanager  // For IosWorkerFactory and BackgroundSessionManager
         result(FlutterMethodNotImplemented)
       }
     }
-
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
   // MARK: - Background URLSession Support (v2.3.0+)

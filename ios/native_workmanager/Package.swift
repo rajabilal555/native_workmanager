@@ -21,10 +21,25 @@ let package = Package(
             name: "KMPWorkManager",
             path: "../Frameworks/KMPWorkManager.xcframework"
         ),
+        // Issue #36: ObjC target that registers BGTask launch handlers in +load,
+        // before the app finishes launching. Required because on the Flutter 3.38+
+        // UIScene template plugin registration happens too late for
+        // BGTaskScheduler.register, and because only ObjC can catch the
+        // NSExceptions it throws. Must stay a separate target: SPM targets are
+        // single-language, so the .m/.h files cannot live in the Swift target.
+        .target(
+            name: "native_workmanager_objc",
+            path: "Sources/native_workmanager_objc",
+            publicHeadersPath: "include",
+            linkerSettings: [
+                .linkedFramework("BackgroundTasks"),
+            ]
+        ),
         .target(
             name: "native_workmanager",
             dependencies: [
                 "KMPWorkManager",
+                "native_workmanager_objc",
             ],
             path: "Sources/native_workmanager",
             resources: [

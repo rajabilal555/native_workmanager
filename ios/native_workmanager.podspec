@@ -21,8 +21,13 @@ Features:
   s.license          = { :type => 'MIT', :file => '../LICENSE' }
   s.author           = { 'Brewkits' => 'vietnguyentuan@gmail.com' }
   s.source           = { :path => '.' }
-  # Sources now live in the SPM-compatible location (shared with Package.swift)
-  s.source_files     = 'native_workmanager/Sources/native_workmanager/**/*.{swift,h,m}'
+  # Sources now live in the SPM-compatible location (shared with Package.swift).
+  # native_workmanager_objc holds the +load BGTask registrar (Issue #36) — in the
+  # CocoaPods build it compiles into the same mixed-language pod target, so the
+  # Swift side sees NWMBGTaskRegistrar through the umbrella header (no import).
+  s.source_files     = 'native_workmanager/Sources/native_workmanager/**/*.{swift,h,m}',
+                       'native_workmanager/Sources/native_workmanager_objc/**/*.{h,m}'
+  s.frameworks       = 'BackgroundTasks'
   s.dependency 'Flutter'
   s.platform         = :ios, '14.0'
 
