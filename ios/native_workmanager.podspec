@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'native_workmanager'
-  s.version          = '1.3.0'
+  s.version          = '1.3.2'
   s.summary          = 'Background task manager for Flutter using platform-native APIs.'
   s.description      = <<-DESC
 Native WorkManager is a Flutter plugin that provides native background task scheduling
@@ -41,15 +41,15 @@ Features:
   }
   s.swift_version = '5.0'
 
-  # KMP WorkManager Framework (kmpworkmanager v2.5.1)
+  # KMP WorkManager Framework (kmpworkmanager v3.0.1)
   # Downloaded from GitHub Releases to stay under the pub.dev 100 MB package limit.
   s.prepare_command = <<-CMD
     set -e
     if [ ! -d "Frameworks/KMPWorkManager.xcframework" ]; then
-      echo "Downloading KMPWorkManager.xcframework v2.5.1..."
+      echo "Downloading KMPWorkManager.xcframework v3.0.1..."
       mkdir -p Frameworks
       curl -L --retry 3 -o /tmp/KMPWorkManager.xcframework.zip \
-        "https://github.com/brewkits/native_workmanager/releases/download/v1.3.0/KMPWorkManager.xcframework.zip"
+        "https://github.com/brewkits/native_workmanager/releases/download/v1.3.2/KMPWorkManager.xcframework.zip"
       rm -rf /tmp/kmpwm_extract
       unzip -o /tmp/KMPWorkManager.xcframework.zip -d /tmp/kmpwm_extract
       # Release zip may be flat or wrapped in a Frameworks/ dir - handle both.

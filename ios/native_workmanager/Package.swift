@@ -16,7 +16,7 @@ let package = Package(
         // No third-party dependencies. Uses Apple Archive for ZIP operations.
     ],
     targets: [
-        // KMPWorkManager is bundled as a local XCFramework (kmpworkmanager v2.3.3)
+        // KMPWorkManager is bundled as a local XCFramework (kmpworkmanager v3.0.1)
         .binaryTarget(
             name: "KMPWorkManager",
             path: "../Frameworks/KMPWorkManager.xcframework"

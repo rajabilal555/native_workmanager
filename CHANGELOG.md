@@ -33,6 +33,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - BGTasks that fire before the Swift side attaches (cold-start background
     launch) are buffered and delivered once handlers attach.
 
+### Changed
+
+- **kmpworkmanager core upgraded 2.5.1 → 3.0.1** (Android Maven dependency +
+  bundled iOS XCFramework rebuilt from source).
+  - v3.0.1 fixes a critical crash on Android 8–11 (API 26–30): expedited tasks
+    failed with `IllegalStateException: Not implemented` due to a missing
+    `getForegroundInfo()` override (regressed in core v2.3.8).
+  - v3.0.0 extracted Ktor HTTP workers into the optional `kmpworkmanager-http`
+    artifact — not needed by this plugin (it ships its own native workers);
+    no API changes affect the plugin bridge.
+
 ### Added
 
 - iOS: `NativeWorkmanagerPlugin.registerBGTaskHandlers()` — optional explicit
