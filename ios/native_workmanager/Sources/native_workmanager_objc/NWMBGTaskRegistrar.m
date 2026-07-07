@@ -160,9 +160,15 @@ static NSMutableDictionary<NSString *, NSNumber *> *gRegisterAttempts;
     @synchronized(self) {
         for (NSString *identifier in self.pluginTaskIdentifiers) {
             snapshot[identifier] = @{
-                @"registered": @([gRegistered containsObject:identifier]),
-                @"registeredInLoad": @([gRegisteredInLoad containsObject:identifier]),
-                @"handlerAttached": @(gHandlers[identifier] != nil),
+                // Explicit (BOOL) casts are load-bearing, not decoration: `@()` boxes
+                // based on the expression's static C type. `containsObject:` is declared
+                // to return BOOL so it boxes correctly on its own, but `!=` always
+                // yields C `int` — without the cast, `@(a != nil)` boxes an NSNumber
+                // int, which the Flutter standard codec decodes as Dart `int` (e.g. 1),
+                // not `bool` (true), and integration test issue_36 catches exactly this.
+                @"registered": @((BOOL)[gRegistered containsObject:identifier]),
+                @"registeredInLoad": @((BOOL)[gRegisteredInLoad containsObject:identifier]),
+                @"handlerAttached": @((BOOL)(gHandlers[identifier] != nil)),
                 @"registerAttempts": gRegisterAttempts[identifier] ?: @0,
             };
         }
