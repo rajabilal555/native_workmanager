@@ -1,6 +1,6 @@
 # API Reference
 
-> Complete API documentation for native_workmanager v1.2.7
+> Complete API documentation for native_workmanager v1.3.2
 
 ## Core Classes
 
@@ -55,21 +55,25 @@ void main() async {
 Schedules a single background task.
 
 ```dart
-static Future<void> enqueue({
+static Future<TaskHandler> enqueue({
   required String taskId,
-  required TaskTrigger trigger,
+  TaskTrigger trigger = const TaskTrigger.oneTime(),
   required Worker worker,
-  Constraints? constraints,
-  Map<String, dynamic>? inputData,
+  Constraints constraints = const Constraints(),
+  ExistingTaskPolicy existingPolicy = ExistingTaskPolicy.replace,
+  String? tag,
 })
 ```
 
 **Parameters:**
 - `taskId` - Unique identifier for the task
-- `trigger` - When/how the task should run (one-time, periodic, etc.)
-- `worker` - The worker that executes the task logic
-- `constraints` - Optional execution constraints (network, battery, etc.)
-- `inputData` - Optional input data passed to worker
+- `trigger` - When/how the task should run. Defaults to `TaskTrigger.oneTime()`
+- `worker` - The worker that executes the task logic. Any input data goes through the specific `Worker` subclass's own constructor (e.g. `NativeWorker.httpSync(...)`, `DartWorker(callbackId: ..., input: ...)`) — there is no separate `inputData` parameter
+- `constraints` - Execution constraints (network, battery, etc.). Defaults to `Constraints()`
+- `existingPolicy` - What to do if `taskId` already has a pending/running task. Defaults to `ExistingTaskPolicy.replace`
+- `tag` - Optional tag for grouping tasks (see `cancelByTag`, `getTasksByTag`)
+
+**Returns:** `TaskHandler` — streams progress/result events scoped to this task (see [Track progress in real time](../README.md#track-progress-in-real-time))
 
 **Example:**
 ```dart
@@ -113,12 +117,12 @@ await NativeWorkManager.beginWith(
 Cancels a scheduled task by ID.
 
 ```dart
-static Future<void> cancel(String taskId)
+static Future<void> cancel({required String taskId})
 ```
 
 **Example:**
 ```dart
-await NativeWorkManager.cancel('api-sync');
+await NativeWorkManager.cancel(taskId: 'api-sync');
 ```
 
 ---
@@ -242,6 +246,39 @@ static Worker httpSync({
   Map<String, dynamic>? requestBody,
   Duration timeout = const Duration(seconds: 60),
   TokenRefreshConfig? tokenRefresh,
+  RequestSigning? requestSigning,
+})
+```
+
+---
+
+##### `parallelHttpDownload()`
+
+Chunked parallel download — splits the file into `numChunks` ranged requests for faster downloads on high-bandwidth connections.
+
+```dart
+static Worker parallelHttpDownload({
+  required String url,
+  required String savePath,
+  int numChunks = 4,
+  Map<String, String> headers = const {},
+  Duration timeout = const Duration(minutes: 10),
+  String? expectedChecksum,
+  String checksumAlgorithm = 'SHA-256',
+  bool showNotification = false,
+})
+```
+
+---
+
+##### `custom()`
+
+Invoke a custom native worker class you registered yourself (Android `SimpleAndroidWorkerFactory` / iOS `IosWorkerFactory`). See [Custom Native Workers](use-cases/07-custom-native-workers.md).
+
+```dart
+static Worker custom({
+  required String className,
+  Map<String, dynamic>? input,
 })
 ```
 
@@ -249,9 +286,9 @@ static Worker httpSync({
 
 #### File Workers
 
-##### `fileCompress()`
+##### `fileCompress()` ⚠️ Deprecated
 
-Compress files/directories to ZIP.
+> **Deprecated since v1.1.0** — native ZIP support was removed. Do not use in new code.
 
 ```dart
 static Worker fileCompress({
@@ -265,9 +302,9 @@ static Worker fileCompress({
 
 ---
 
-##### `fileDecompress()`
+##### `fileDecompress()` ⚠️ Deprecated
 
-Extract ZIP archives.
+> **Deprecated since v1.1.0** — native ZIP support was removed. Do not use in new code.
 
 ```dart
 static Worker fileDecompress({
@@ -362,12 +399,14 @@ static Worker imageProcess({
   int? maxWidth,
   int? maxHeight,
   bool maintainAspectRatio = true,
-  int? quality,
+  int quality = 85,
   ImageFormat? outputFormat,
-  ImageCropRect? cropRect,
+  Rect? cropRect,
   bool deleteOriginal = false,
 })
 ```
+
+`cropRect` is `dart:ui`'s `Rect` (`import 'dart:ui' show Rect;`) — not a package-specific type.
 
 ---
 
@@ -427,6 +466,88 @@ static Worker cryptoDecrypt({
 
 ---
 
+#### PDF Workers
+
+##### `pdfMerge()`
+
+Merge multiple PDF files into one.
+
+```dart
+static Worker pdfMerge({
+  required List<String> inputPaths,
+  required String outputPath,
+})
+```
+
+---
+
+##### `pdfCompress()`
+
+Re-render a PDF at lower quality to reduce file size.
+
+```dart
+static Worker pdfCompress({
+  required String inputPath,
+  required String outputPath,
+  int quality = 80,
+})
+```
+
+---
+
+##### `pdfFromImages()`
+
+Convert image files into a PDF (one image per page).
+
+```dart
+static Worker pdfFromImages({
+  required List<String> imagePaths,
+  required String outputPath,
+  PdfPageSize pageSize = PdfPageSize.a4,
+  int margin = 0,
+})
+```
+
+---
+
+#### Storage Workers
+
+##### `moveToSharedStorage()`
+
+Move a file into shared/public storage (Android `MediaStore` — Downloads/Pictures/Movies; iOS Files app).
+
+```dart
+static MoveToSharedStorageWorker moveToSharedStorage({
+  required String sourcePath,
+  required SharedStorageType storageType,
+  String? fileName,
+  String? mimeType,
+  String? subDir,
+})
+```
+
+---
+
+#### Real-time Workers
+
+##### `webSocket()`
+
+Send a sequence of WebSocket messages and optionally capture responses. Android only.
+
+```dart
+static Worker webSocket({
+  required String url,
+  List<String> messages = const [],
+  Map<String, String> headers = const {},
+  int timeoutSeconds = 30,
+  int receiveMessages = 1,
+  String? storeResponseAt,
+  int? pingIntervalSeconds,
+})
+```
+
+---
+
 ### DartWorker
 
 Worker for custom Dart logic (uses Flutter engine).
@@ -450,7 +571,7 @@ DartWorker({
 ```dart
 // Register callback (in main.dart during initialize)
 @WorkerCallback('processData')
-Future<bool> myProcessData(String? inputData) async {
+Future<bool> myProcessData(Map<String, dynamic>? input) async {
   // Your Dart logic here
   print('Processing data...');
   return true;
@@ -487,7 +608,7 @@ Defines when tasks should execute.
 Execute task once after optional delay.
 
 ```dart
-static TaskTrigger oneTime([Duration? initialDelay])
+static TaskTrigger oneTime([Duration initialDelay = Duration.zero])
 ```
 
 **Example:**
@@ -506,6 +627,7 @@ static TaskTrigger periodic(
   Duration interval, {
   Duration? flexInterval,
   Duration? initialDelay,
+  bool runImmediately = true,
 })
 ```
 
@@ -513,6 +635,7 @@ static TaskTrigger periodic(
 - `interval`: Time between executions (minimum 15 minutes).
 - `flexInterval`: (Android only) Flex window for OS optimization.
 - `initialDelay`: (New in v1.2.3) Delay before the very first execution.
+- `runImmediately`: Whether the first execution fires right away (subject to `initialDelay`) or waits a full `interval` before the first run. Defaults to `true`.
 
 **Example:**
 ```dart
@@ -558,14 +681,18 @@ Constraints({
   bool requiresNetwork = false,
   bool requiresUnmeteredNetwork = false,
   bool requiresCharging = false,
+  bool requiresDeviceIdle = false,
   bool requiresBatteryNotLow = false,
   bool requiresStorageNotLow = false,
-  bool requiresDeviceIdle = false,
+  bool allowWhileIdle = false,
+  bool isHeavyTask = false,
+  QoS qos = QoS.background,
+  ExactAlarmIOSBehavior exactAlarmIOSBehavior = ExactAlarmIOSBehavior.showNotification,
   BackoffPolicy backoffPolicy = BackoffPolicy.exponential,
   int backoffDelayMs = 30000,
-  int maxAttempts = 3,
-  bool isHeavyTask = false,
-  bool allowWhileIdle = false,
+  int maxRetries = 3,
+  Set<SystemConstraint> systemConstraints = const {},
+  BGTaskType? bgTaskType,
   ForegroundServiceType? foregroundServiceType,
   ForegroundNotificationConfig? foregroundNotificationConfig,
 })
@@ -634,8 +761,8 @@ enum ImageFormat {
 
 ```dart
 enum HashAlgorithm {
-  md5,
-  sha1,
+  md5,     // ⚠️ Deprecated — cryptographically broken, use sha256/sha512
+  sha1,    // ⚠️ Deprecated — cryptographically broken, use sha256/sha512
   sha256,
   sha512,
 }
@@ -647,8 +774,8 @@ enum HashAlgorithm {
 
 ```dart
 enum BackoffPolicy {
-  linear,
   exponential,
+  linear,
 }
 ```
 
@@ -660,17 +787,12 @@ Used to specify the type of Foreground Service for Android 14+ compliance.
 
 ```dart
 enum ForegroundServiceType {
-  dataSync,
-  location,
-  mediaPlayback,
-  phoneCall,
-  connectedDevice,
-  mediaProjection,
-  health,
-  remoteMessaging,
-  shortService,
-  specialUse,
-  systemExemption,
+  dataSync,      // Default — safe for most heavy tasks, no permissions required
+  location,      // Requires ACCESS_FINE_LOCATION/ACCESS_COARSE_LOCATION
+  mediaPlayback, // Requires FOREGROUND_SERVICE_MEDIA_PLAYBACK (Android 14+)
+  camera,        // Requires CAMERA + FOREGROUND_SERVICE_CAMERA (Android 14+)
+  microphone,    // Requires RECORD_AUDIO + FOREGROUND_SERVICE_MICROPHONE (Android 14+)
+  health,        // Requires BODY_SENSORS + FOREGROUND_SERVICE_HEALTH (Android 14+)
 }
 ```
 
@@ -714,10 +836,15 @@ class TaskEvent {
   final String taskId;
   final bool success;
   final String? message;
+  final String? errorCode;
+  final Map<String, dynamic>? resultData;
   final DateTime timestamp;
-  final Map<String, dynamic>? outputData;
+  final bool isStarted;
+  final String? workerType;
 }
 ```
+
+`isStarted` is `true` for the transient "worker began execution" event (see `enqueue()`'s progress stream); `resultData` carries worker-specific output (e.g. downloaded file size, hash value).
 
 **Example:**
 ```dart
@@ -763,7 +890,7 @@ TaskChainBuilder thenAll(List<TaskRequest> tasks)
 Schedule the chain.
 
 ```dart
-Future<void> enqueue()
+Future<ScheduleResult> enqueue()
 ```
 
 ---
@@ -776,8 +903,7 @@ Represents a task in a chain.
 TaskRequest({
   required String id,
   required Worker worker,
-  Constraints? constraints,
-  Map<String, dynamic>? inputData,
+  Constraints constraints = const Constraints(),
 })
 ```
 
@@ -814,5 +940,5 @@ NativeWorker.httpDownload(
 
 ---
 
-**Version:** 1.2.2
-**Last Updated:** 2026-04-20
+**Version:** 1.3.2
+**Last Updated:** 2026-07-07

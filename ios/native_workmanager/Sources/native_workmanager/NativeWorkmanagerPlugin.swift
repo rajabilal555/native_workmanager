@@ -37,6 +37,32 @@ public class NativeWorkmanagerPlugin: NSObject, FlutterPlugin {
         pluginRegistrantCallback = callback
     }
 
+    /// Explicitly register the plugin's BGTaskScheduler launch handlers.
+    ///
+    /// **Usually unnecessary** — the plugin auto-registers its handlers in an
+    /// ObjC `+load` hook (NWMBGTaskRegistrar), which runs before the app
+    /// finishes launching on every Flutter template, old or new (Issue #36).
+    ///
+    /// Call this from `application(_:didFinishLaunchingWithOptions:)` only as a
+    /// belt-and-braces measure, or if your build strips ObjC `+load` sections:
+    ///
+    /// ```swift
+    /// override func application(_ application: UIApplication,
+    ///     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+    ///     NativeWorkmanagerPlugin.registerBGTaskHandlers()
+    ///     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    /// }
+    /// ```
+    ///
+    /// Idempotent and exception-safe: duplicate or late registration degrades
+    /// to a logged system error instead of a crash.
+    @objc
+    public static func registerBGTaskHandlers() {
+        if #available(iOS 13.0, *) {
+            BGTaskSchedulerManager.shared.registerHandlers()
+        }
+    }
+
     private static var shared: NativeWorkmanagerPlugin?
 
     let workerQueue = DispatchQueue(label: "dev.brewkits.native_workmanager.worker", qos: .utility)
@@ -155,6 +181,12 @@ public class NativeWorkmanagerPlugin: NSObject, FlutterPlugin {
         case "syncOfflineQueue":        result(false) // stub
         case "getRunningProgress":      result(ProgressReporter.shared.getRunningProgress())
         case "openFile":                handleOpenFile(call: call, result: result)
+        case "debugBGTaskRegistration": // issue_36 regression probe (iOS-only, debug/testing)
+            if #available(iOS 13.0, *) {
+                result(BGTaskSchedulerManager.shared.registrationDebugInfo())
+            } else {
+                result([:])
+            }
         default: handleExtensionMethods(call: call, result: result)
         }
     }

@@ -96,6 +96,53 @@ import native_workmanager
 
 ---
 
+## 4b. Flutter 3.38+ (UIScene lifecycle) — BGTask registration timing
+
+**TL;DR: nothing to configure — but read this if you customize the app lifecycle.**
+
+Apple requires every `BGTaskScheduler.register(...)` call to finish **before the
+app finishes launching**; registering later throws
+`NSInternalInconsistencyException` and crashes at startup.
+
+Apps created with **Flutter 3.38+** use the UIScene lifecycle template
+(`FlutterImplicitEngineDelegate` + `SceneDelegate`). On that template, plugins are
+registered from `didInitializeImplicitFlutterEngine`, which runs *after*
+`application(_:didFinishLaunchingWithOptions:)` returns — too late for
+`BGTaskScheduler`. This crashed the plugin on the new template (Issue #36).
+
+Since **v1.3.2** the plugin handles this automatically:
+
+- An ObjC `+load` hook (`NWMBGTaskRegistrar`) registers the plugin's BGTask launch
+  handlers (`dev.brewkits.native_workmanager.task` / `.refresh`) the moment the
+  binary is loaded — always before the launch deadline, on both the old and the
+  new template.
+- When the plugin registers later (whenever that happens), it only *attaches* the
+  Swift task handlers to the already-registered launch handlers.
+- Any BGTask that fires before the Swift side is up (cold-start background launch)
+  is buffered and delivered once the handlers attach.
+- All registration paths are exception-safe and idempotent: worst case is a
+  `BGTASK_REGISTRATION_FAILED` system error in the logs — never a crash.
+
+Optional belt-and-braces (or if your toolchain strips ObjC `+load` sections):
+
+```swift
+override func application(_ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+  NativeWorkmanagerPlugin.registerBGTaskHandlers()  // idempotent, exception-safe
+  return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+}
+```
+
+**Do NOT** call `BGTaskScheduler.shared.register(...)` yourself for the plugin's
+identifiers — duplicate registration also throws.
+
+**Note on identifiers in `Info.plist`:** the `+load` hook only registers
+identifiers that are present in `BGTaskSchedulerPermittedIdentifiers`. If they are
+missing, background execution is silently unavailable (a log line tells you) —
+run `dart run native_workmanager:setup_ios` to add them.
+
+---
+
 ## 5. Troubleshooting KMP Integration
 
 ### Error: `Undefined symbol: _OBJC_CLASS_$_KMPWorkManager`

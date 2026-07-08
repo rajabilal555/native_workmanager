@@ -3,6 +3,17 @@
 Our mission is to provide the most robust, efficient, and secure background execution engine for Flutter.
 
 ---
+## ✅ Completed (v1.3.x)
+- **v1.3.2 iOS UIScene Lifecycle Compatibility (Issue #36):**
+  - Fixed a startup crash (`NSInternalInconsistencyException`) on apps using the Flutter 3.38+ UIScene template, where plugin registration runs after `didFinishLaunching` — too late for `BGTaskScheduler.register`.
+  - BGTask launch handlers now register in an ObjC `+load` hook (`NWMBGTaskRegistrar`), always inside the launch window, on both the legacy and UIScene templates — no user setup required.
+  - Closes out the registration-hook and reference-app work promised (but not delivered) in Issue #16.
+  - `kmpworkmanager` core upgraded 2.5.1 → 3.0.1, fixing an expedited-task crash on Android 8–11 (API 26–30).
+- **v1.3.0 "Zero-Config" Developer Experience** — both items below shipped:
+  - **Android Auto-Init:** `androidx.startup` `Initializer` (`NativeWorkManagerInitializer`) runs before `Application.onCreate()` — no custom `Application` class or manifest edits needed for `DartWorker`.
+  - **Unified CLI Setup Tool:** `dart run native_workmanager:setup` patches `AndroidManifest.xml` and `Info.plist` (`BGTaskSchedulerPermittedIdentifiers`) automatically. The iOS `+load` registration piece originally scoped as a CLI injection ships instead as a built-in plugin mechanism (v1.3.2) — simpler and always-on, no CLI step required.
+
+---
 ## ✅ Completed (v1.2.x)
 - **v1.2.6 Industrial Reliability & FGS Bypass:**
   - **Foreground Service (FGS) Support (Android)**: Bypass Android 12+ background restrictions for heavy tasks with prioritized notifications.
@@ -27,24 +38,7 @@ Our mission is to provide the most robust, efficient, and secure background exec
 
 ---
 
-## 🛠 v1.3.0 — "Zero-Config" & Developer Experience (Current Priority)
-
-To drive mass adoption and reach 100k+ downloads, v1.3.0 focuses entirely on lowering the barrier to entry.
-
-### 1. Android Auto-Init (Zero Native Setup)
-Today, `DartWorker` requires manual Kotlin/XML steps to survive app kill. In v1.3.0, the plugin will ship its own `androidx.startup` `Initializer` that runs before `Application.onCreate()`.
-- **Impact:** Eliminates the need for a custom `Application` class, `AndroidManifest.xml` modifications, and manual WorkManager initializer removal.
-- **Opt-out:** Apps with custom WorkManager configs can disable auto-init via a single `<meta-data>` flag.
-
-### 2. Unified CLI Setup Tool (`dart run native_workmanager:setup`)
-- Evolves `setup_ios` into a universal command.
-- **Android:** Automatically patches `AndroidManifest.xml` (for advanced opt-out/custom setups).
-- **iOS:** Automatically parses and injects `BGTaskSchedulerPermittedIdentifiers` into `Info.plist` and injects Objective-C `+load` method or `AppDelegate` code for background registration.
-- **Impact:** "1-Click Setup" for both platforms. No Native knowledge required.
-
----
-
-## 🧩 Phase 2: Ecosystem, Templates & Integrations (v1.4.x - v1.5.x)
+## 🧩 Phase 2: Ecosystem, Templates & Integrations (v1.4.x - v1.5.x) — Current Priority
 
 To capture mindshare from legacy libraries, we must provide "Plug & Play" solutions.
 

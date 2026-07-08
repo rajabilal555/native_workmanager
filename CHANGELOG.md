@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.2] - 2026-07-07
+
+### Fixed
+
+- **iOS: startup crash on Flutter 3.38+ (UIScene template) — Issue #36.**
+  Apps created with the Flutter 3.38+ iOS template register plugins in
+  `AppDelegate.didInitializeImplicitFlutterEngine`, which runs *after*
+  `application(_:didFinishLaunchingWithOptions:)` returns. Calling
+  `BGTaskScheduler.register` at that point violates Apple's
+  "all launch handlers must be registered before application finishes launching"
+  rule and threw `NSInternalInconsistencyException` at startup
+  (reported on iPhone 15 / iOS 18.6.2; affects any device on the new template).
+  - BGTask launch handlers are now registered in an ObjC `+load` hook
+    (`NWMBGTaskRegistrar`) that runs at binary load time — always inside the
+    launch window, on both the old and the new template. Plugin registration
+    only attaches the Swift handlers afterwards.
+  - All `BGTaskScheduler.register` calls now go through ObjC `@try/@catch`
+    (Swift cannot catch `NSException`): late or duplicate registration degrades
+    to a `BGTASK_REGISTRATION_FAILED` system error instead of a crash.
+  - Fixed a latent duplicate-registration crash: `registerHandlers()` had no
+    idempotency guard, so `GeneratedPluginRegistrant` re-running on the headless
+    background engine (`FlutterEngineManager`) re-registered the identifiers and
+    threw the same `NSInternalInconsistencyException`.
+  - BGTasks that fire before the Swift side attaches (cold-start background
+    launch) are buffered and delivered once handlers attach.
+
+### Changed
+
+- **kmpworkmanager core upgraded 2.5.1 → 3.0.1** (Android Maven dependency +
+  bundled iOS XCFramework rebuilt from source).
+  - v3.0.1 fixes a critical crash on Android 8–11 (API 26–30): expedited tasks
+    failed with `IllegalStateException: Not implemented` due to a missing
+    `getForegroundInfo()` override (regressed in core v2.3.8).
+  - v3.0.0 extracted Ktor HTTP workers into the optional `kmpworkmanager-http`
+    artifact — not needed by this plugin (it ships its own native workers);
+    no API changes affect the plugin bridge.
+
+### Added
+
+- iOS: `NativeWorkmanagerPlugin.registerBGTaskHandlers()` — optional explicit
+  registration from `didFinishLaunchingWithOptions` (idempotent, exception-safe).
+  Only needed if a build setup strips ObjC `+load` sections.
+- Example app migrated to the Flutter 3.38+ UIScene template
+  (`FlutterImplicitEngineDelegate` + `SceneDelegate`) so the device test suite
+  runs on the lifecycle that triggered the crash; new `issue_36` device
+  regression test asserts handlers are registered in `+load`, exactly once.
+
+---
+
 ## [1.3.1] - 2026-06-07
 
 ### Fixed

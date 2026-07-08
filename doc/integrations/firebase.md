@@ -21,7 +21,7 @@ This guide shows how to integrate Firebase with native_workmanager for backgroun
 
 ```yaml
 dependencies:
-  native_workmanager: ^1.2.7
+  native_workmanager: ^1.3.2
   firebase_core: ^2.24.0
   firebase_analytics: ^10.7.0
   firebase_crashlytics: ^3.4.0
@@ -54,16 +54,17 @@ import 'package:firebase_core/firebase_core.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  await NativeWorkManager.initialize();
-
-  // Register callback
-  NativeWorkManager.registerCallback('analyticsSync', analyticsSyncCallback);
+  await NativeWorkManager.initialize(
+    dartWorkers: {
+      'analyticsSync': analyticsSyncCallback,
+    },
+  );
 
   runApp(MyApp());
 }
 
 @pragma('vm:entry-point')
-Future<void> analyticsSyncCallback(String? input) async {
+Future<bool> analyticsSyncCallback(Map<String, dynamic>? input) async {
   // Initialize Firebase in background isolate
   await Firebase.initializeApp();
 
@@ -83,6 +84,7 @@ Future<void> analyticsSyncCallback(String? input) async {
   await clearAnalyticsQueue();
 
   print('Synced ${events.length} analytics events');
+  return true;
 }
 
 // Schedule periodic sync
@@ -180,7 +182,7 @@ Capture crashes and errors in background tasks.
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 @pragma('vm:entry-point')
-Future<void> safeSyncCallback(String? input) async {
+Future<bool> safeSyncCallback(Map<String, dynamic>? input) async {
   await Firebase.initializeApp();
 
   final crashlytics = FirebaseCrashlytics.instance;
@@ -196,6 +198,7 @@ Future<void> safeSyncCallback(String? input) async {
 
     // Log successful completion
     crashlytics.log('Background sync completed successfully');
+    return true;
   } catch (error, stackTrace) {
     // Log error to Crashlytics
     crashlytics.recordError(
@@ -219,7 +222,7 @@ Future<void> performBackgroundSync() async {
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> syncWithBreadcrumbs(String? input) async {
+Future<bool> syncWithBreadcrumbs(Map<String, dynamic>? input) async {
   await Firebase.initializeApp();
 
   final crashlytics = FirebaseCrashlytics.instance;
@@ -237,6 +240,7 @@ Future<void> syncWithBreadcrumbs(String? input) async {
     await saveData(data);
 
     crashlytics.log('Sync completed successfully');
+    return true;
   } catch (error, stackTrace) {
     crashlytics.log('ERROR: Sync failed at step');
     await crashlytics.recordError(error, stackTrace);
@@ -257,7 +261,7 @@ Fetch Remote Config values in background.
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 
 @pragma('vm:entry-point')
-Future<void> remoteConfigSyncCallback(String? input) async {
+Future<bool> remoteConfigSyncCallback(Map<String, dynamic>? input) async {
   await Firebase.initializeApp();
 
   final remoteConfig = FirebaseRemoteConfig.instance;
@@ -282,6 +286,7 @@ Future<void> remoteConfigSyncCallback(String? input) async {
 
     // Update local configuration
     await updateAppConfig(syncInterval, enabledFeatures);
+    return true;
   } catch (e) {
     print('Remote Config sync failed: $e');
     rethrow;
@@ -318,7 +323,7 @@ Sync Firestore data in background.
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 @pragma('vm:entry-point')
-Future<void> firestoreSyncCallback(String? input) async {
+Future<bool> firestoreSyncCallback(Map<String, dynamic>? input) async {
   await Firebase.initializeApp();
 
   final firestore = FirebaseFirestore.instance;
@@ -346,6 +351,7 @@ Future<void> firestoreSyncCallback(String? input) async {
     await saveLastSyncTime(DateTime.now());
 
     print('Firestore sync completed');
+    return true;
   } catch (e) {
     print('Firestore sync failed: $e');
     rethrow;
@@ -370,7 +376,7 @@ Future<void> saveToLocalDatabase(String id, Map<String, dynamic> data) async {
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> bidirectionalSyncCallback(String? input) async {
+Future<bool> bidirectionalSyncCallback(Map<String, dynamic>? input) async {
   await Firebase.initializeApp();
 
   final firestore = FirebaseFirestore.instance;
@@ -402,6 +408,7 @@ Future<void> bidirectionalSyncCallback(String? input) async {
   print('Downloaded ${remoteChanges.docs.length} remote changes');
 
   await saveLastSyncTime(DateTime.now());
+  return true;
 }
 
 Future<List<LocalChange>> getLocalChanges() async {
@@ -429,7 +436,7 @@ Refresh Firebase Cloud Messaging tokens in background.
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 @pragma('vm:entry-point')
-Future<void> fcmTokenRefreshCallback(String? input) async {
+Future<bool> fcmTokenRefreshCallback(Map<String, dynamic>? input) async {
   await Firebase.initializeApp();
 
   final messaging = FirebaseMessaging.instance;
@@ -447,6 +454,7 @@ Future<void> fcmTokenRefreshCallback(String? input) async {
       // Save locally
       await saveTokenLocally(token);
     }
+    return true;
   } catch (e) {
     print('FCM token refresh failed: $e');
     rethrow;
@@ -454,11 +462,18 @@ Future<void> fcmTokenRefreshCallback(String? input) async {
 }
 
 Future<void> sendTokenToBackend(String token) async {
-  // Send to your API
-  await NativeWorker.httpRequest(
-    url: 'https://api.example.com/fcm-token',
-    method: HttpMethod.post,
-    body: '{"token": "$token"}',
+  // Send to your API. NativeWorker.httpRequest() only builds a Worker
+  // descriptor — it must be scheduled via enqueue() to actually run;
+  // awaiting the descriptor directly performs no network call.
+  await NativeWorkManager.enqueue(
+    taskId: 'fcm-token-upload',
+    trigger: TaskTrigger.oneTime(),
+    worker: NativeWorker.httpRequest(
+      url: 'https://api.example.com/fcm-token',
+      method: HttpMethod.post,
+      body: '{"token": "$token"}',
+    ),
+    constraints: Constraints(requiresNetwork: true),
   );
 }
 
@@ -475,13 +490,14 @@ Future<void> saveTokenLocally(String token) async {
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> firebaseCallback(String? input) async {
+Future<bool> firebaseCallback(Map<String, dynamic>? input) async {
   // CRITICAL: Initialize Firebase in background isolate
   await Firebase.initializeApp();
 
   // Now use Firebase services
   final analytics = FirebaseAnalytics.instance;
   // ...
+  return true;
 }
 ```
 
@@ -489,16 +505,18 @@ Future<void> firebaseCallback(String? input) async {
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> offlineAwareCallback(String? input) async {
+Future<bool> offlineAwareCallback(Map<String, dynamic>? input) async {
   await Firebase.initializeApp();
 
   try {
-    await firestore.collection('data').get();
+    await FirebaseFirestore.instance.collection('data').get();
+    return true;
   } on FirebaseException catch (e) {
     if (e.code == 'unavailable') {
-      // Network unavailable, retry later
+      // Network unavailable — report failure so Constraints.maxRetries applies,
+      // instead of silently returning without signaling a result.
       print('Offline, will retry');
-      return;
+      return false;
     }
     rethrow;
   }
@@ -577,9 +595,10 @@ constraints: Constraints(
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> callback(String? input) async {
+Future<bool> callback(Map<String, dynamic>? input) async {
   await Firebase.initializeApp();  // Required!
   // ...
+  return true;
 }
 ```
 
@@ -626,12 +645,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FirebaseSyncService {
   static Future<void> initialize() async {
-    await NativeWorkManager.initialize();
-
-    // Register callbacks
-    NativeWorkManager.registerCallback('analyticsSync', _analyticsSync);
-    NativeWorkManager.registerCallback('firestoreSync', _firestoreSync);
-    NativeWorkManager.registerCallback('configSync', _configSync);
+    await NativeWorkManager.initialize(
+      dartWorkers: {
+        'analyticsSync': _analyticsSync,
+        'firestoreSync': _firestoreSync,
+        'configSync': _configSync,
+      },
+    );
 
     // Schedule tasks
     await _scheduleTasks();
@@ -673,7 +693,7 @@ class FirebaseSyncService {
   }
 
   @pragma('vm:entry-point')
-  static Future<void> _analyticsSync(String? input) async {
+  static Future<bool> _analyticsSync(Map<String, dynamic>? input) async {
     await Firebase.initializeApp();
     final crashlytics = FirebaseCrashlytics.instance;
 
@@ -690,6 +710,7 @@ class FirebaseSyncService {
 
       await AnalyticsQueue.clearAnalyticsQueue();
       crashlytics.log('Synced ${events.length} analytics events');
+      return true;
     } catch (error, stackTrace) {
       await crashlytics.recordError(error, stackTrace);
       rethrow;
@@ -697,7 +718,7 @@ class FirebaseSyncService {
   }
 
   @pragma('vm:entry-point')
-  static Future<void> _firestoreSync(String? input) async {
+  static Future<bool> _firestoreSync(Map<String, dynamic>? input) async {
     await Firebase.initializeApp();
     final crashlytics = FirebaseCrashlytics.instance;
 
@@ -716,6 +737,7 @@ class FirebaseSyncService {
 
       await saveLastSyncTime(DateTime.now());
       crashlytics.log('Synced ${snapshot.docs.length} documents');
+      return true;
     } catch (error, stackTrace) {
       await crashlytics.recordError(error, stackTrace);
       rethrow;
@@ -723,7 +745,7 @@ class FirebaseSyncService {
   }
 
   @pragma('vm:entry-point')
-  static Future<void> _configSync(String? input) async {
+  static Future<bool> _configSync(Map<String, dynamic>? input) async {
     await Firebase.initializeApp();
     final crashlytics = FirebaseCrashlytics.instance;
 
@@ -732,6 +754,7 @@ class FirebaseSyncService {
       await remoteConfig.fetchAndActivate();
 
       crashlytics.log('Remote Config synced');
+      return true;
     } catch (error, stackTrace) {
       await crashlytics.recordError(error, stackTrace);
       rethrow;

@@ -327,13 +327,7 @@ class _GraphExecutor {
     if (!taskId.startsWith(prefix)) return;
     final nodeId = taskId.substring(prefix.length);
 
-    // ignore: avoid_print
-    print(
-        '[_GraphExecutor] Received event for $nodeId: success=${event.success}, isStarted=${event.isStarted}, inFlight=$_inFlight');
-
     if (!_inFlight.contains(nodeId)) {
-      // ignore: avoid_print
-      print('[_GraphExecutor] Ignored event for $nodeId (not in flight)');
       return;
     }
 
@@ -421,15 +415,8 @@ class _GraphExecutor {
     final total = _graph._nodes.length;
     final resolved = _completed.length + _failed.length + _cancelled.length;
 
-    // ignore: avoid_print
-    print(
-        '[_GraphExecutor] _checkDone: resolved=$resolved/$total, inFlight=$_inFlight');
-
     if (resolved < total) return;
     if (_inFlight.isNotEmpty) return;
-
-    // ignore: avoid_print
-    print('[_GraphExecutor] Graph complete! Completing future.');
 
     _eventSub?.cancel();
     _eventSub = null;

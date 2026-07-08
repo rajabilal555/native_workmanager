@@ -197,7 +197,7 @@ await NativeWorkManager.enqueue(
       'quality': 85,
     },
   ),
-  constraints: Constraints(deviceIdle: true),
+  constraints: Constraints(requiresDeviceIdle: true),
 );
 ```
 
@@ -226,7 +226,7 @@ Future<void> compressCameraRoll() async {
       tag: 'batch-compress',
       constraints: Constraints(
         requiresCharging: true,
-        requiresWifi: true,
+        requiresUnmeteredNetwork: true,
       ),
     );
   }

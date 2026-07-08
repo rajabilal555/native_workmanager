@@ -27,6 +27,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:native_workmanager/native_workmanager.dart';
@@ -2529,6 +2530,75 @@ void main() {
 
       await NativeWorkManager.cancel(taskId: id);
     });
+  });
+
+  // ════════════════════════════════════════════════════════════
+  // GROUP – Issue #36 regression (iOS BGTask registration timing)
+  // The example app runs the Flutter 3.38+ UIScene template, where
+  // plugin registration happens AFTER didFinishLaunching returns.
+  // Before the fix, BGTaskScheduler.register at that point threw
+  // NSInternalInconsistencyException and the app crashed at startup
+  // (so this suite booting at all is itself part of the regression
+  // coverage). This test additionally asserts the +load registrar
+  // did the OS-level registration in the launch window, exactly once.
+  // ════════════════════════════════════════════════════════════
+  group('Issue #36 – BGTask launch handler registration', () {
+    testWidgets(
+      'issue_36: handlers registered in +load, before launch completed, exactly once',
+      (tester) async {
+        if (!Platform.isIOS) {
+          markTestSkipped('BGTaskScheduler registration is iOS-only');
+          return;
+        }
+
+        const channel = MethodChannel('dev.brewkits/native_workmanager');
+        final raw = await channel.invokeMethod<dynamic>(
+          'debugBGTaskRegistration',
+        );
+        final info = Map<String, dynamic>.from(raw as Map);
+
+        expect(
+          info['handlersAttached'],
+          isTrue,
+          reason: 'Swift handlers must be attached after plugin registration',
+        );
+
+        for (final identifier in [
+          'dev.brewkits.native_workmanager.task',
+          'dev.brewkits.native_workmanager.refresh',
+        ]) {
+          final entry = Map<String, dynamic>.from(info[identifier] as Map);
+          expect(
+            entry['registered'],
+            isTrue,
+            reason:
+                '$identifier must be registered with BGTaskScheduler '
+                '(would have crashed pre-fix on the UIScene template)',
+          );
+          expect(
+            entry['registeredInLoad'],
+            isTrue,
+            reason:
+                '$identifier must be registered by the ObjC +load hook, '
+                'inside the "before application finishes launching" window',
+          );
+          expect(
+            entry['handlerAttached'],
+            isTrue,
+            reason: '$identifier must have a Swift handler attached',
+          );
+          expect(
+            entry['registerAttempts'],
+            1,
+            reason:
+                '$identifier must be registered exactly once — a second '
+                'OS-level attempt (e.g. from the headless background engine '
+                're-running GeneratedPluginRegistrant) throws '
+                'NSInternalInconsistencyException',
+          );
+        }
+      },
+    );
   });
 
   // ════════════════════════════════════════════════════════════

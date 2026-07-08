@@ -34,8 +34,11 @@ android {
     }
 
     dependencies {
-        // KMP WorkManager - Core library (from Maven Central v2.5.1)
-        api("dev.brewkits:kmpworkmanager:2.5.1")
+        // KMP WorkManager - Core library (from Maven Central v3.0.1)
+        // v3.0.1 fixes expedited-task crash on Android 8-11 (missing getForegroundInfo,
+        // regressed v2.3.8..v3.0.0). Ktor HTTP workers moved to kmpworkmanager-http in
+        // v3.0.0 — NOT needed here (plugin ships its own native workers).
+        api("dev.brewkits:kmpworkmanager:3.0.1")
 
         // androidx.startup — auto-initializes the plugin before Application.onCreate()
         // so DartWorker works out-of-the-box without a custom Application class.

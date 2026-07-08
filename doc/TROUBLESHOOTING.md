@@ -111,6 +111,51 @@ Possible values: `accepted`, `replaced`, `dropped` (duplicate policy conflict).
 
 ## 3. Background Execution
 
+### iOS: Crash at startup — `NSInternalInconsistencyException` in `BGTaskScheduler registerForTaskWithIdentifier` (Issue #36)
+
+**Symptom:** The app crashes immediately on launch. The crash log shows:
+
+```
+Fatal Exception: NSInternalInconsistencyException
+All launch handlers must be registered before application finishes launching
+
+3  BackgroundTasks  -[BGTaskScheduler _unsafe_registerForTaskWithIdentifier:usingQueue:launchHandler:]
+5  native_workman…  BGTaskSchedulerManager.registerHandlers()
+8  native_workman…  @objc static NativeWorkmanagerPlugin.register(with:)
+9  Runner           +[GeneratedPluginRegistrant registerWithRegistry:]
+10 Runner           AppDelegate.didInitializeImplicitFlutterEngine(_:)
+```
+
+**Cause (fixed in v1.3.2):** Apple requires all `BGTaskScheduler.register(...)` calls
+to complete **before the app finishes launching**. Apps created with the
+**Flutter 3.38+ iOS template** use the UIScene lifecycle: plugins are registered in
+`AppDelegate.didInitializeImplicitFlutterEngine`, which runs when the
+`FlutterViewController` loads from the storyboard — *after*
+`application(_:didFinishLaunchingWithOptions:)` has already returned. Registering the
+BGTask launch handlers at that point violates Apple's rule and crashes.
+Apps created with the pre-3.38 template are unaffected, which is why the same plugin
+version works in one app and crashes in another.
+
+**Fix:** Upgrade to **native_workmanager >= 1.3.2**. The plugin now registers its
+BGTask launch handlers in an ObjC `+load` hook (`NWMBGTaskRegistrar`) that runs when
+the binary is loaded — always inside the launch window, on every Flutter template.
+Plugin registration later only *attaches* the Swift handlers. Registration problems
+now degrade to a `BGTASK_REGISTRATION_FAILED` system error log instead of a crash.
+
+If you ever see `BGTASK_REGISTRATION_FAILED` in the logs (e.g. a build setup that
+strips ObjC `+load` sections), you can register explicitly — it is idempotent and
+exception-safe:
+
+```swift
+override func application(_ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+  NativeWorkmanagerPlugin.registerBGTaskHandlers()  // safe no-op if already registered
+  return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+}
+```
+
+---
+
 ### iOS: Task does not run in the background after app is killed
 
 **Cause:** `BGAppRefreshTask` fires only when the OS decides — it cannot be triggered manually.
@@ -118,7 +163,7 @@ Possible values: `accepted`, `replaced`, `dropped` (duplicate policy conflict).
 **Required setup:**
 
 1. Add `BGTaskSchedulerPermittedIdentifiers` to `Info.plist` with your task identifier.
-2. Call `BGTaskScheduler.shared.register(...)` in `AppDelegate.swift` (the plugin does this automatically for built-in workers).
+2. Handler registration is automatic since v1.3.2 (ObjC `+load` hook — see the Issue #36 entry above). Never call `BGTaskScheduler.shared.register(...)` yourself for the plugin's identifiers; a duplicate registration throws `NSInternalInconsistencyException`.
 3. Enable **Background Modes → Background fetch** in Xcode Capabilities.
 
 **iOS note:** Periodic tasks that use `while !Task.isCancelled { ... }` in-process **stop when the app is killed**. Use BGAppRefreshTask for true background periodic execution (the plugin logs a warning for this case).

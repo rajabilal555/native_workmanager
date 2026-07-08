@@ -44,9 +44,9 @@ void main() {
       test(
           'issue_26: allowWhileIdle + isHeavyTask both true is accepted (no over-restrictive assert)',
           () {
-        // Per CLAUDE.md "No Over-Restrictive Assertions": the native OS can
-        // handle this combination, so the Dart API must allow it. It must NOT
-        // throw — re-adding an assert here would re-introduce Issue #26.
+        // No Over-Restrictive Assertions: the native OS can handle this
+        // combination, so the Dart API must allow it. It must NOT throw —
+        // re-adding an assert here would re-introduce Issue #26.
         expect(
           () => Constraints(
             allowWhileIdle: true,

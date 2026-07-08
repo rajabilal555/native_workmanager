@@ -234,7 +234,7 @@ await NativeWorkManager.enqueue(
     url: 'https://api.example.com/backup',
     files: [UploadFile(filePath: '/temp/encrypted.bin', fieldName: 'backup')],
   ),
-  constraints: Constraints(requiresWifi: true),
+  constraints: Constraints(requiresUnmeteredNetwork: true),
 );
 
 // Step 3: Cleanup
