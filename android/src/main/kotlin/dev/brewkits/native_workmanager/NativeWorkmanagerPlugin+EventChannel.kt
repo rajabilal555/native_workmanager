@@ -342,6 +342,9 @@ internal fun NativeWorkmanagerPlugin.observeWorkCompletion(taskId: String, isPer
                                 if (infos.firstOrNull()?.state == WorkInfo.State.RUNNING &&
                                     taskStatuses[taskId] != "running") {
                                     taskStatuses[taskId] = "running"
+                                    withContext(Dispatchers.IO) {
+                                        taskStore.updateStatus(taskId, "running")
+                                    }
                                     eventSink?.success(mapOf(
                                         "taskId" to taskId,
                                         "isStarted" to true,
@@ -379,7 +382,7 @@ internal fun NativeWorkmanagerPlugin.observeWorkCompletion(taskId: String, isPer
                                 taskBusSignals.computeIfAbsent(taskId) { CompletableDeferred() }.await()
                                 true
                             } ?: false
-                            
+
                             taskBusSignals.remove(taskId)
 
                             // If TaskEventBus already handled the event, skip the fallback emission.
@@ -391,6 +394,14 @@ internal fun NativeWorkmanagerPlugin.observeWorkCompletion(taskId: String, isPer
 
                             if (taskStatuses[taskId] != "completed") {
                                 taskStatuses[taskId] = "completed"
+                                withContext(Dispatchers.IO) {
+                                    val resultJson = outputDataMap?.let { toJson(it) }
+                                    taskStore.updateStatus(
+                                        taskId = taskId,
+                                        status = "completed",
+                                        resultData = resultJson
+                                    )
+                                }
                                 NativeLogger.d("✅ WorkInfo SUCCEEDED (fallback): $taskId")
                                 eventSink?.success(mapOf(
                                     "taskId" to taskId,
@@ -408,7 +419,7 @@ internal fun NativeWorkmanagerPlugin.observeWorkCompletion(taskId: String, isPer
                                 taskBusSignals.computeIfAbsent(taskId) { CompletableDeferred() }.await()
                                 true
                             } ?: false
-                            
+
                             taskBusSignals.remove(taskId)
 
                             if (wasSignalled) {
@@ -418,6 +429,14 @@ internal fun NativeWorkmanagerPlugin.observeWorkCompletion(taskId: String, isPer
 
                             if (taskStatuses[taskId] != "failed") {
                                 taskStatuses[taskId] = "failed"
+                                withContext(Dispatchers.IO) {
+                                    val resultJson = outputDataMap?.let { toJson(it) }
+                                    taskStore.updateStatus(
+                                        taskId = taskId,
+                                        status = "failed",
+                                        resultData = resultJson
+                                    )
+                                }
                                 NativeLogger.e("❌ WorkInfo FAILED (fallback): $taskId")
                                 eventSink?.success(mapOf(
                                     "taskId" to taskId,
@@ -442,6 +461,9 @@ internal fun NativeWorkmanagerPlugin.observeWorkCompletion(taskId: String, isPer
                                 continue
                             }
                             taskStatuses[taskId] = "cancelled"
+                            withContext(Dispatchers.IO) {
+                                taskStore.updateStatus(taskId, "cancelled")
+                            }
                             NativeLogger.d("⚠️ WorkInfo CANCELLED: $taskId")
                             break
                         }
@@ -454,6 +476,51 @@ internal fun NativeWorkmanagerPlugin.observeWorkCompletion(taskId: String, isPer
         } catch (e: Exception) {
             NativeLogger.e("❌ Failed to observe work completion for $taskId", e)
         }
+    }
+}
+
+/**
+ * Reconcile SQLite task rows with WorkManager after app restart.
+ *
+ * DartWorkers complete via WorkInfo but historically did not persist terminal
+ * status when the observeWorkCompletion coroutine was lost on process death.
+ */
+internal suspend fun NativeWorkmanagerPlugin.syncTaskStoreWithWorkManager() {
+    try {
+        val wm = WorkManager.getInstance(context)
+        val stale = withContext(Dispatchers.IO) {
+            taskStore.getAllTasks().filter { it.status == "pending" || it.status == "running" }
+        }
+        for (record in stale) {
+            val infos = try {
+                wm.getWorkInfosForUniqueWorkFlow(record.taskId).first()
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val info = infos.firstOrNull() ?: continue
+            val syncedStatus = when (info.state) {
+                WorkInfo.State.SUCCEEDED -> "completed"
+                WorkInfo.State.FAILED -> "failed"
+                WorkInfo.State.CANCELLED -> "cancelled"
+                WorkInfo.State.RUNNING -> "running"
+                else -> null
+            } ?: continue
+
+            if (syncedStatus == record.status) continue
+
+            val resultJson = when (syncedStatus) {
+                "completed", "failed" ->
+                    info.outputData.keyValueMap.takeIf { it.isNotEmpty() }?.let { toJson(it) }
+                else -> null
+            }
+            withContext(Dispatchers.IO) {
+                taskStore.updateStatus(record.taskId, syncedStatus, resultJson)
+            }
+            taskStatuses[record.taskId] = syncedStatus
+            NativeLogger.d("Synced task ${record.taskId}: ${record.status} -> $syncedStatus")
+        }
+    } catch (e: Exception) {
+        NativeLogger.e("syncTaskStoreWithWorkManager failed", e)
     }
 }
 

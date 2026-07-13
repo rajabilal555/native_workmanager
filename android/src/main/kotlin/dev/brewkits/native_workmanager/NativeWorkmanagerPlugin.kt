@@ -167,6 +167,7 @@ class NativeWorkmanagerPlugin : FlutterPlugin, MethodCallHandler,
                     record.tag?.let { taskTags[record.taskId] = it }
                 }
                 NativeLogger.d("🔋 Restored ${allRecords.size} task(s) from store")
+                syncTaskStoreWithWorkManager()
             } catch (e: Exception) {
                 NativeLogger.e("Failed to restore task state or perform cleanup", e)
                 if (e is android.database.sqlite.SQLiteFullException) {

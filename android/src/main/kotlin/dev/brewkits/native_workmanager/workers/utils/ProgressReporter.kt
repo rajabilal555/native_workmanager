@@ -38,9 +38,10 @@ object ProgressReporter {
         val networkSpeed: Double? = null,   // bytes per second
         val timeRemainingMs: Long? = null   // milliseconds
     ) {
-        fun toMap(): Map<String, Any?> = buildMap {
+        fun toMap(timestampMs: Long = System.currentTimeMillis()): Map<String, Any?> = buildMap {
             put("taskId", taskId)
             put("progress", progress)
+            put("timestamp", timestampMs)
             if (message != null) put("message", message)
             if (currentStep != null) put("currentStep", currentStep)
             if (totalSteps != null) put("totalSteps", totalSteps)
@@ -54,6 +55,7 @@ object ProgressReporter {
             val obj = org.json.JSONObject()
             obj.put("taskId", taskId)
             obj.put("progress", progress)
+            obj.put("timestamp", System.currentTimeMillis())
             obj.put("message", message)
             obj.put("currentStep", currentStep)
             obj.put("totalSteps", totalSteps)
@@ -70,7 +72,32 @@ object ProgressReporter {
     private val lastPersistedProgress = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
     fun getRunningProgress(): Map<String, Map<String, Any?>> {
-        return lastEmittedUpdates.mapValues { it.value.toMap() }
+        val result = lastEmittedUpdates.mapValues { it.value.toMap() }.toMutableMap()
+
+        // After process restart the in-memory map is empty; fall back to SQLite.
+        taskStore?.getAllTasks()?.forEach { task ->
+            if (task.status != "pending" && task.status != "running") return@forEach
+            if (result.containsKey(task.taskId)) return@forEach
+            val json = task.lastProgressJson ?: return@forEach
+            progressJsonToMap(json, task.updatedAt)?.let { result[task.taskId] = it }
+        }
+        return result
+    }
+
+    private fun progressJsonToMap(json: String, updatedAt: Long): Map<String, Any?>? {
+        return try {
+            val obj = org.json.JSONObject(json)
+            val map = mutableMapOf<String, Any?>()
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                map[key] = obj.get(key)
+            }
+            if (!map.containsKey("timestamp")) map["timestamp"] = updatedAt
+            map
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private val _progressFlow = MutableSharedFlow<ProgressUpdate>(
