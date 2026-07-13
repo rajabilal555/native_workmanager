@@ -140,7 +140,8 @@ extension NativeWorkmanagerPlugin {
             self.progressSink?([
                 "taskId": taskId,
                 "progress": progress,
-                "message": message as Any
+                "message": message as Any,
+                "timestamp": Int(Date().timeIntervalSince1970 * 1000),
             ])
         }
     }
@@ -148,9 +149,13 @@ extension NativeWorkmanagerPlugin {
     /// Emit a rich progress event from a pre-built dict (taskId + progress already included).
     /// Used by BackgroundSessionManager's richProgressDelegate to forward bytes/speed/ETA to Flutter.
     func emitRichProgress(_ dict: [String: Any]) {
+        var payload = dict
+        if payload["timestamp"] == nil {
+            payload["timestamp"] = Int(Date().timeIntervalSince1970 * 1000)
+        }
         if #available(iOS 13.0, *),
-           let taskId = dict["taskId"] as? String,
-           let progress = dict["progress"] as? Int {
+           let taskId = payload["taskId"] as? String,
+           let progress = payload["progress"] as? Int {
             let notifTitle: String? = stateQueue.sync { taskNotifTitles[taskId] }
             if let title = notifTitle {
                 let allowPause: Bool = stateQueue.sync { taskAllowPause[taskId] ?? true }
@@ -158,13 +163,13 @@ extension NativeWorkmanagerPlugin {
                     taskId: taskId,
                     title: title,
                     progress: Double(progress),
-                    message: dict["message"] as? String,
+                    message: payload["message"] as? String,
                     allowPause: allowPause
                 )
             }
         }
         DispatchQueue.main.async {
-            self.progressSink?(dict)
+            self.progressSink?(payload)
         }
     }
 

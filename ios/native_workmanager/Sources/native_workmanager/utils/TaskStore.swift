@@ -241,6 +241,7 @@ struct TaskRecord {
     let errorMessage: String?
     let createdAt: Int
     let updatedAt: Int
+    let lastProgressJson: String?
 
     init(from row: [String: Any]) {
         self.taskId = row["task_id"] as? String ?? ""
@@ -252,6 +253,7 @@ struct TaskRecord {
         self.errorMessage = row["error_message"] as? String
         self.createdAt = row["created_at"] as? Int ?? 0
         self.updatedAt = row["updated_at"] as? Int ?? 0
+        self.lastProgressJson = row["last_progress_json"] as? String
     }
 
     func toFlutterMap() -> [String: Any] {

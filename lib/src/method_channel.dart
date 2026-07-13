@@ -133,9 +133,10 @@ class MethodChannelNativeWorkManager extends NativeWorkManagerPlatform {
       if (event is Map) {
         final map = Map<String, dynamic>.from(event);
 
-        // Drop stale progress events (stale session or already completed).
+        // Drop stale progress events from a previous session.
+        // Missing timestamp (0) is treated as current — older native builds omitted it.
         final timestamp = map['timestamp'] as int? ?? 0;
-        if (timestamp < _sessionStartTime) return;
+        if (timestamp != 0 && timestamp < _sessionStartTime) return;
 
         final taskProgress = TaskProgress.fromMap(map);
         if (_completedTaskIds.contains(taskProgress.taskId)) return;

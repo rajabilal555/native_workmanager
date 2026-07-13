@@ -164,6 +164,21 @@ class ProgressReporterTest {
         assertEquals("Processing file", map["message"])
         assertEquals(3, map["currentStep"])
         assertEquals(4, map["totalSteps"])
+        assertTrue(map["timestamp"] is Long)
+    }
+
+    @Test
+    fun `toJson includes timestamp`() {
+        val json = ProgressReporter.ProgressUpdate(
+            taskId = "test-task-tojson",
+            progress = 40,
+            message = "mid"
+        ).toJson()
+        val obj = org.json.JSONObject(json)
+        assertEquals("test-task-tojson", obj.getString("taskId"))
+        assertEquals(40, obj.getInt("progress"))
+        assertTrue(obj.has("timestamp"))
+        assertTrue(obj.getLong("timestamp") > 0)
     }
 
     @Test
@@ -183,6 +198,7 @@ class ProgressReporterTest {
         assertFalse(map.containsKey("message"))
         assertFalse(map.containsKey("currentStep"))
         assertFalse(map.containsKey("totalSteps"))
+        assertTrue(map.containsKey("timestamp"))
     }
 
     @Test

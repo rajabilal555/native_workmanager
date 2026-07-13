@@ -44,7 +44,24 @@ final class ProgressReporter {
     func getRunningProgress() -> [String: [String: Any]] {
         lock.lock()
         defer { lock.unlock() }
-        return lastEmittedUpdates
+        var result = lastEmittedUpdates
+
+        if #available(iOS 13.0, *) {
+            for task in TaskStore.shared.allTasks() {
+                guard task.status == "pending" || task.status == "running" else { continue }
+                if result[task.taskId] != nil { continue }
+                guard let json = task.lastProgressJson,
+                      let data = json.data(using: .utf8),
+                      let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                else { continue }
+                var enriched = dict
+                if enriched["timestamp"] == nil {
+                    enriched["timestamp"] = task.updatedAt * 1000
+                }
+                result[task.taskId] = enriched
+            }
+        }
+        return result
     }
 
     /// Report a rich progress update.
@@ -78,7 +95,11 @@ final class ProgressReporter {
             return
         }
 
-        var dict: [String: Any] = ["taskId": taskId, "progress": clamped]
+        var dict: [String: Any] = [
+            "taskId": taskId,
+            "progress": clamped,
+            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
+        ]
         if let m = message            { dict["message"]         = m }
         if let b = bytesDownloaded    { dict["bytesDownloaded"] = b }
         if let t = totalBytes         { dict["totalBytes"]      = t }
