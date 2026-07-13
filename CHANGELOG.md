@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.3] - 2026-07-14
+
+### Fixed
+
+- **DartWorker progress events dropped (UI stuck at 0%) — Issue #38.**
+  Native emitted the progress map without a `timestamp`, so the Dart
+  session-filter (`timestamp < _sessionStartTime`, defaulting the missing value
+  to `0`) silently discarded every progress event. Android
+  `ProgressUpdate.toMap()`/`toJson()` and iOS `ProgressReporter`/`emitProgress`
+  now stamp `timestamp`; the Dart filter treats a missing/`0` timestamp as
+  "current" for backward compatibility with older native builds. Covered by
+  `issue_38_*` in `device_integration_test.dart`.
+
+  Fixing this on iOS surfaced two further iOS-only gaps (caught by the device
+  test) that PR #40 alone did not close: (a) `__taskId` was never injected into
+  a foreground DartWorker's input, so the callback had no id to report progress
+  with — `executeDartWorkerViaMethodChannel` now merges it in, mirroring
+  Android's `DartCallbackWorker`; (b) the `dev.brewkits/dart_worker_channel`
+  `reportProgress` handler existed only on the `FlutterEngineManager` background
+  engine, so foreground callbacks threw `MissingPluginException` — the main
+  engine now registers the same handler, routed through `ProgressReporter`.
+
+- **DartWorker TaskStore status stuck on `pending` after success — Issue #39.**
+  Only the `TaskEventBus` path persisted terminal status to SQLite, and
+  `DartCallbackWorker` never emits on that bus, so completed DartWorkers stayed
+  `pending` forever in `allTasks()`. The WorkInfo fallback in
+  `observeWorkCompletion` now calls `taskStore.updateStatus(...)` for
+  running/completed/failed/cancelled, plus a `syncTaskStoreWithWorkManager()`
+  reconciliation on restart to repair rows left stale by process death. Covered
+  by `issue_39_*` in `device_integration_test.dart`.
+
+---
+
 ## [1.3.2] - 2026-07-07
 
 ### Fixed

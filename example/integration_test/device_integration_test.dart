@@ -173,6 +173,28 @@ Future<bool> _ditLongRunning(Map<String, dynamic>? input) async {
   return true;
 }
 
+/// Issue #38/#39 regression: a DartWorker that reports progress (50% then 100%)
+/// via [NativeWorkManager.reportDartWorkerProgress] and then returns `true`.
+/// Proves progress events reach the Dart stream (#38) and that the task moves
+/// to a terminal status in the persistent store afterwards (#39).
+@pragma('vm:entry-point')
+Future<bool> _ditProgress(Map<String, dynamic>? input) async {
+  final taskId = input?['__taskId'] as String?;
+  print('[DartWorker] dit_progress starting, taskId=$taskId');
+  await NativeWorkManager.reportDartWorkerProgress(
+    taskId: taskId,
+    progress: 50,
+    message: 'halfway',
+  );
+  await Future<void>.delayed(const Duration(milliseconds: 500));
+  await NativeWorkManager.reportDartWorkerProgress(
+    taskId: taskId,
+    progress: 100,
+  );
+  print('[DartWorker] dit_progress done');
+  return true;
+}
+
 @pragma('vm:entry-point')
 Future<bool> _workflowFinalizer(Map<String, dynamic>? input) async {
   print('[DartWorker] _workflowFinalizer starting...');
@@ -212,6 +234,7 @@ void main() {
         'chain_a': _chainA,
         'chain_b': _chainB,
         'chain_c': _chainC,
+        'dit_progress': _ditProgress,
         'workflow_finalizer': _workflowFinalizer,
       },
     );
@@ -2812,6 +2835,104 @@ void main() {
           reason: 'Complex workflow should succeed',
         );
         expect(File(encryptedPath).existsSync(), isTrue);
+      },
+    );
+  });
+
+  // ════════════════════════════════════════════════════════════
+  // GROUP – Issue #38 / #39: DartWorker progress + persisted status
+  //
+  // #38: reportDartWorkerProgress from a DartWorker must reach the Dart
+  //      progress stream. Regression cause: native emitted the progress map
+  //      WITHOUT a `timestamp`, so the Dart session-filter (timestamp <
+  //      _sessionStartTime, with a 0 default) silently dropped every event.
+  //
+  // #39: after a DartWorker returns true, allTasks() must report a terminal
+  //      status (not `pending` forever). Regression cause: the WorkInfo
+  //      fallback in observeWorkCompletion updated only the in-memory map and
+  //      the Dart sink, never taskStore.updateStatus(...).
+  //
+  // Both fail if the native bridge stops forwarding the field — a serialization
+  // round-trip test alone does not cover them (see Issue #30 rule).
+  // ════════════════════════════════════════════════════════════
+  group('Issue #38/#39 – DartWorker progress and persisted status', () {
+    testWidgets(
+      'issue_38: DartWorker reportDartWorkerProgress reaches the progress stream',
+      (tester) async {
+        final id = _id('issue38_progress');
+        final progressValues = <int>[];
+        final saw100 = Completer<void>();
+
+        final progressSub = NativeWorkManager.progress.listen((p) {
+          if (p.taskId == id) {
+            progressValues.add(p.progress);
+            if (p.progress >= 100 && !saw100.isCompleted) saw100.complete();
+          }
+        });
+
+        final eventFuture = _waitEvent(id, timeout: const Duration(seconds: 45));
+
+        await NativeWorkManager.enqueue(
+          taskId: id,
+          trigger: const TaskTrigger.oneTime(),
+          worker: DartWorker(callbackId: 'dit_progress'),
+        );
+
+        final event = await eventFuture;
+        // Give the last progress event a moment to arrive after completion.
+        await saw100.future.timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {},
+        );
+        await progressSub.cancel();
+
+        expect(event?.success, isTrue, reason: 'dit_progress must succeed');
+        expect(
+          progressValues,
+          isNotEmpty,
+          reason:
+              'issue_38: progress events must reach the Dart stream (were '
+              'dropped when native omitted the timestamp field)',
+        );
+        expect(
+          progressValues,
+          contains(50),
+          reason: 'issue_38: the 50% update must not be filtered out',
+        );
+      },
+    );
+
+    testWidgets(
+      'issue_39: DartWorker status becomes terminal in allTasks() after success',
+      (tester) async {
+        final id = _id('issue39_status');
+        final eventFuture = _waitEvent(id, timeout: const Duration(seconds: 45));
+
+        await NativeWorkManager.enqueue(
+          taskId: id,
+          trigger: const TaskTrigger.oneTime(),
+          worker: DartWorker(callbackId: 'dit_progress'),
+        );
+
+        final event = await eventFuture;
+        expect(event?.success, isTrue, reason: 'dit_progress must succeed');
+
+        // Allow the WorkInfo-fallback coroutine to persist the terminal status.
+        await Future<void>.delayed(const Duration(seconds: 2));
+
+        final tasks = await NativeWorkManager.allTasks();
+        final record = tasks.where((t) => t.taskId == id).toList();
+        // The record may be purged by the platform; if present it must NOT be
+        // stuck on pending/running — that is exactly the #39 bug.
+        if (record.isNotEmpty) {
+          expect(
+            record.first.status,
+            isNot(anyOf('pending', 'running')),
+            reason:
+                'issue_39: DartWorker TaskStore status stuck on pending after '
+                'success (WorkInfo fallback never called taskStore.updateStatus)',
+          );
+        }
       },
     );
   });

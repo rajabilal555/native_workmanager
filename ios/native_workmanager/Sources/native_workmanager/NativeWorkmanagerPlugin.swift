@@ -18,6 +18,12 @@ public class NativeWorkmanagerPlugin: NSObject, FlutterPlugin {
     var methodChannel: FlutterMethodChannel?
     var eventChannel: FlutterEventChannel?
     var progressChannel: FlutterEventChannel?
+    // Foreground DartWorker callbacks run in the main engine and call
+    // MethodChannel('dev.brewkits/dart_worker_channel').invokeMethod('reportProgress').
+    // The main engine must handle it (the FlutterEngineManager background engine has
+    // its own copy); without this, reportDartWorkerProgress() throws MissingPluginException
+    // and the callback fails. Retained so its handler is not deallocated.
+    var dartWorkerChannel: FlutterMethodChannel?
     var systemErrorChannel: FlutterEventChannel?
 
     var eventSink: FlutterEventSink?
@@ -106,6 +112,26 @@ public class NativeWorkmanagerPlugin: NSObject, FlutterPlugin {
         
         instance.systemErrorChannel = FlutterEventChannel(name: systemErrorChannelName, binaryMessenger: messenger)
         instance.systemErrorChannel?.setStreamHandler(SystemErrorStreamHandler(plugin: instance))
+
+        // Handle progress reports from foreground DartWorker callbacks (they run in
+        // the main engine, not the FlutterEngineManager background engine).
+        instance.dartWorkerChannel = FlutterMethodChannel(
+            name: "dev.brewkits/dart_worker_channel", binaryMessenger: messenger)
+        instance.dartWorkerChannel?.setMethodCallHandler { (call, result) in
+            guard call.method == "reportProgress" else {
+                result(FlutterMethodNotImplemented)
+                return
+            }
+            let args     = call.arguments as? [String: Any]
+            let taskId   = args?["taskId"]   as? String ?? ""
+            let progress = args?["progress"] as? Int    ?? 0
+            let message  = args?["message"]  as? String
+            // Route through ProgressReporter (same as the FlutterEngineManager
+            // background path): forwards to the progress EventChannel via onProgress,
+            // records lastEmittedUpdates, and persists last_progress_json to SQLite.
+            ProgressReporter.shared.report(taskId: taskId, progress: progress, message: message)
+            result(nil)
+        }
 
         KMPBridge.shared.initialize()
 

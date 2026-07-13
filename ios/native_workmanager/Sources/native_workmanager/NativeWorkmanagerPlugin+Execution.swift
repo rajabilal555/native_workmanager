@@ -537,7 +537,11 @@ extension NativeWorkmanagerPlugin {
         guard let callbackId = workerConfig["callbackId"] as? String else {
             return WorkerResult.failure(message: "DartCallbackWorker: missing callbackId in config")
         }
-        let input = workerConfig["input"] as? String
+        // Inject __taskId into the input JSON so the Dart callback can call
+        // NativeWorkManager.reportDartWorkerProgress(). The Dart side only receives
+        // the inner "input" string — mirror Android's DartCallbackWorker, which merges
+        // the outer __taskId into that inner object before forwarding to Dart.
+        let input = Self.mergeTaskId(into: workerConfig["input"] as? String, taskId: taskId)
 
         // Honor user-configured DartWorker.timeoutMs across both execution paths
         // (foreground main-channel and killed-app FlutterEngineManager fallback).
@@ -594,6 +598,29 @@ extension NativeWorkmanagerPlugin {
                 }
             }
         }
+    }
+
+    /// Merge `__taskId` into a DartWorker input JSON string so the callback can
+    /// report progress. Returns a JSON object string. Mirrors Android's
+    /// DartCallbackWorker input enrichment; falls back to the original string if
+    /// the input is a non-object JSON that cannot carry the key.
+    static func mergeTaskId(into inputJson: String?, taskId: String) -> String? {
+        var obj: [String: Any] = [:]
+        if let json = inputJson, !json.isEmpty, json != "null" {
+            if let data = json.data(using: .utf8),
+               let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                obj = parsed
+            } else {
+                // Non-object JSON (scalar/array) — cannot inject; keep as-is.
+                return inputJson
+            }
+        }
+        obj["__taskId"] = taskId
+        guard let merged = try? JSONSerialization.data(withJSONObject: obj),
+              let mergedString = String(data: merged, encoding: .utf8) else {
+            return inputJson
+        }
+        return mergedString
     }
 
     private func mapQoS(_ qos: String) -> DispatchQoS.QoSClass {
