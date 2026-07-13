@@ -1,6 +1,6 @@
 # API Reference
 
-> Complete API documentation for native_workmanager v1.3.2
+> Complete API documentation for native_workmanager v1.3.3
 
 ## Core Classes
 
@@ -940,5 +940,5 @@ NativeWorker.httpDownload(
 
 ---
 
-**Version:** 1.3.2
-**Last Updated:** 2026-07-07
+**Version:** 1.3.3
+**Last Updated:** 2026-07-14

@@ -114,6 +114,38 @@ void main() {
     });
 
     test(
+        'issue_38: progress with missing/0 timestamp is delivered, not dropped as zombie',
+        () async {
+      // Regression for #38: native emitted the progress map without a
+      // `timestamp`, which decoded to 0. The old filter (`timestamp <
+      // _sessionStartTime`) then dropped every such event. A missing/0
+      // timestamp must now be treated as "current" and delivered.
+      await platform.initialize();
+
+      final updates = <TaskProgress>[];
+      final subscription = platform.progress.listen(updates.add);
+
+      // Missing timestamp (older native build / the exact #38 payload shape).
+      emitNativeProgress({'taskId': 'no-ts-task', 'progress': 50});
+      // Explicit zero timestamp.
+      emitNativeProgress({
+        'taskId': 'zero-ts-task',
+        'progress': 75,
+        'timestamp': 0,
+      });
+
+      await Future.delayed(Duration.zero);
+
+      expect(updates.length, 2,
+          reason: 'issue_38: progress without a valid timestamp must not be '
+              'filtered out as a zombie event');
+      expect(updates.map((u) => u.taskId),
+          containsAll(<String>['no-ts-task', 'zero-ts-task']));
+
+      await subscription.cancel();
+    });
+
+    test(
         'should cancel old subscriptions on re-initialization (Hot Restart simulation)',
         () async {
       await platform.initialize();

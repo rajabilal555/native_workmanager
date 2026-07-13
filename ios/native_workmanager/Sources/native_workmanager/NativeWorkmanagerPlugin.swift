@@ -186,7 +186,7 @@ public class NativeWorkmanagerPlugin: NSObject, FlutterPlugin {
     }
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-        NSLog("[NativeWorkManager] handle: \(call.method)")
+        NativeLogger.d("handle: \(call.method)")
         switch call.method {
         case "initialize":              handleInitialize(call: call, result: result)
         case "enqueue":                 handleEnqueue(call: call, result: result)
@@ -239,7 +239,7 @@ public class NativeWorkmanagerPlugin: NSObject, FlutterPlugin {
     }
 
     private func handleEnqueue(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        NSLog("[NativeWorkManager] handleEnqueue called")
+        NativeLogger.d("handleEnqueue called")
         guard let args = call.arguments as? [String: Any],
               let taskId = args["taskId"] as? String,
               let workerClassName = args["workerClassName"] as? String else {
@@ -399,9 +399,9 @@ public class NativeWorkmanagerPlugin: NSObject, FlutterPlugin {
         workerQueue.async {
             let record = self.taskStore?.task(taskId: taskId)
             if let r = record {
-                NSLog("[NativeWorkManager] handleGetTaskRecord: found task \(taskId), status \(r.status), hasResultData=\(r.resultData != nil)")
+                NativeLogger.d("handleGetTaskRecord: found task \(taskId), status \(r.status), hasResultData=\(r.resultData != nil)")
             } else {
-                NSLog("[NativeWorkManager] handleGetTaskRecord: task \(taskId) not found")
+                NativeLogger.d("handleGetTaskRecord: task \(taskId) not found")
             }
             DispatchQueue.main.async { result(record?.toFlutterMap()) }
         }
