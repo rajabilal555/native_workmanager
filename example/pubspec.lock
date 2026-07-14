@@ -119,7 +119,7 @@ packages:
     source: sdk
     version: "0.0.0"
   flutter_driver:
-    dependency: transitive
+    dependency: "direct dev"
     description: flutter
     source: sdk
     version: "0.0.0"
@@ -261,7 +261,7 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "1.3.2"
+    version: "1.3.3"
   objective_c:
     dependency: transitive
     description:

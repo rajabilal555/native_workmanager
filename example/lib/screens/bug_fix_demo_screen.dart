@@ -7,7 +7,7 @@ import 'dart:async';
 /// Original bug: IllegalStateException: Not implemented at CoroutineWorker.getForegroundInfo()
 /// Fix: kmpworkmanager 2.3.3 + native_workmanager 1.0.4
 class BugFixDemoScreen extends StatefulWidget {
-  const BugFixDemoScreen({Key? key}) : super(key: key);
+  const BugFixDemoScreen({super.key});
 
   @override
   State<BugFixDemoScreen> createState() => _BugFixDemoScreenState();

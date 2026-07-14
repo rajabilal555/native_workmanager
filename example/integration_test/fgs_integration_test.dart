@@ -1,4 +1,6 @@
-// ignore_for_file: avoid_print
+// Local helper names mirror the top-level `_id` / `_waitEvent` in the other
+// integration-test files for consistency; the leading underscore is intentional.
+// ignore_for_file: no_leading_underscores_for_local_identifiers
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';

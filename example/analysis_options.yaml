@@ -9,6 +9,21 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  errors:
+    # This is the demo/test app, not the published library. The following are
+    # intentional and must not fail `flutter analyze`:
+    #  - avoid_print: integration tests print diagnostics to the console.
+    #  - deprecated_member_use: demos deliberately reference the package's own
+    #    deprecated APIs (e.g. fileCompress/fileDecompress, HashAlgorithm.md5)
+    #    to keep the migration/legacy examples alive.
+    #  - invalid_use_of_internal_member: integration tests exercise internal
+    #    test hooks (e.g. registerPluginsEnabled) that are not part of the
+    #    public API by design.
+    avoid_print: ignore
+    deprecated_member_use: ignore
+    invalid_use_of_internal_member: ignore
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`
