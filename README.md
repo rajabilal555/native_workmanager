@@ -231,7 +231,20 @@ await NativeWorkManager.enqueue(
 
 Dart workers boot a headless Flutter isolate (~50 MB, 1–2 s cold start). The isolate is cached for 5 minutes so back-to-back tasks pay the boot cost only once. For HTTP and file tasks, use native workers instead.
 
-> **Android killed-app support** — When Android kills your app and WorkManager later fires a `DartWorker`, the process restarts without Flutter. The plugin automatically restores the `callbackHandle` from `SharedPreferences`, but your `Application` class must implement `Configuration.Provider` so WorkManager uses the plugin's `WorkerFactory`. One-time setup — see **[Android Setup Guide](doc/ANDROID_SETUP.md)**.
+Report progress from inside a `DartWorker` and it streams to `NativeWorkManager.progress` / `handler.progress` just like a native worker (Android and iOS):
+
+```dart
+@pragma('vm:entry-point')
+Future<bool> syncHealthData(Map<String, dynamic>? input) async {
+  final taskId = input?['__taskId'] as String?;
+  await NativeWorkManager.reportDartWorkerProgress(taskId: taskId, progress: 50);
+  // ... do work ...
+  await NativeWorkManager.reportDartWorkerProgress(taskId: taskId, progress: 100);
+  return true;
+}
+```
+
+> **Android killed-app support** — When Android kills your app and WorkManager later fires a `DartWorker`, the process restarts without Flutter. Since **v1.3.0 this is zero-config**: the plugin's `androidx.startup` initializer restores the `callbackHandle` and installs its `WorkerFactory` automatically before any task fires — no custom `Application` class required. Apps that ship their own `Configuration.Provider` can opt out — see **[Android Setup Guide](doc/ANDROID_SETUP.md)**.
 
 ### Code generation for DartWorker
 
