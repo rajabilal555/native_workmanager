@@ -142,12 +142,31 @@ private fun verifyHmac(payload: Map<String, Any?>, secretKey: String, signature:
         val mac = javax.crypto.Mac.getInstance("HmacSHA256")
         mac.init(keySpec)
         val hmacBytes = mac.doFinal(dataToSign.toByteArray())
-        val computedSignature = hmacBytes.joinToString("") { "%02x".format(it) }
-        
-        return computedSignature.equals(signature, ignoreCase = true)
+
+        // Constant-time comparison to avoid a timing side-channel on signature
+        // verification. String.equals short-circuits on the first mismatch, which
+        // can leak how many leading bytes matched. MessageDigest.isEqual compares
+        // in constant time. Decode the provided hex first so we compare raw bytes.
+        val providedBytes = hexStringToBytes(signature) ?: return false
+        return java.security.MessageDigest.isEqual(hmacBytes, providedBytes)
     } catch (e: Exception) {
         NativeLogger.e("HMAC Verification failed", e)
         return false
+    }
+}
+
+/** Decode a hex string to bytes, or null if it is malformed (odd length / non-hex). */
+private fun hexStringToBytes(hex: String): ByteArray? {
+    if (hex.isEmpty() || hex.length % 2 != 0) return null
+    return try {
+        ByteArray(hex.length / 2) { i ->
+            val hi = Character.digit(hex[i * 2], 16)
+            val lo = Character.digit(hex[i * 2 + 1], 16)
+            if (hi < 0 || lo < 0) throw NumberFormatException("non-hex character")
+            ((hi shl 4) or lo).toByte()
+        }
+    } catch (e: Exception) {
+        null
     }
 }
 

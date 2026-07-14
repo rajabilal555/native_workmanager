@@ -148,11 +148,29 @@ extension NativeWorkmanagerPlugin {
             }
             
             let key = SymmetricKey(data: keyData)
-            let authenticationCode = HMAC<SHA256>.authenticationCode(for: messageData, using: key)
-            let computedSignature = authenticationCode.map { String(format: "%02hhx", $0) }.joined()
-            
-            return computedSignature.lowercased() == signature.lowercased()
+
+            // Constant-time verification. Swift's String `==` short-circuits on the
+            // first mismatch, which can leak how many leading bytes matched (timing
+            // side-channel). CryptoKit's isValidAuthenticationCode compares in
+            // constant time. Decode the provided hex first so we compare raw bytes.
+            guard let providedMac = Self.dataFromHexString(signature) else { return false }
+            return HMAC<SHA256>.isValidAuthenticationCode(
+                providedMac, authenticating: messageData, using: key)
         }
         return false
+    }
+
+    /// Decode a hex string to Data, or nil if it is malformed (odd length / non-hex).
+    private static func dataFromHexString(_ hex: String) -> Data? {
+        guard !hex.isEmpty, hex.count % 2 == 0 else { return nil }
+        var data = Data(capacity: hex.count / 2)
+        var index = hex.startIndex
+        while index < hex.endIndex {
+            let next = hex.index(index, offsetBy: 2)
+            guard let byte = UInt8(hex[index..<next], radix: 16) else { return nil }
+            data.append(byte)
+            index = next
+        }
+        return data
     }
 }
