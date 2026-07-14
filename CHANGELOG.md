@@ -38,6 +38,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reconciliation on restart to repair rows left stale by process death. Covered
   by `issue_39_*` in `device_integration_test.dart`.
 
+### Security
+
+- **Constant-time HMAC signature comparison in RemoteTrigger.** The remote-trigger
+  HMAC verification compared signatures with plain string equality (Android
+  `String.equals`, iOS `==`), which short-circuits on the first differing byte and
+  can leak — via response timing — how many leading bytes matched (a signature
+  verification timing side-channel). Both platforms now compare the raw HMAC bytes
+  in constant time (Android `MessageDigest.isEqual`, iOS CryptoKit
+  `HMAC.isValidAuthenticationCode`). Behavior-preserving: canonicalization and HMAC
+  computation are unchanged, so valid signatures still verify and invalid ones are
+  still rejected.
+
 ---
 
 ## [1.3.2] - 2026-07-07
