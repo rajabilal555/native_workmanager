@@ -450,10 +450,11 @@ void main() {
 
       final sub = NativeWorkManager.events.listen((event) {
         if (event.taskId == id) {
-          if (event.isStarted)
+          if (event.isStarted) {
             startedIds.add(id);
-          else
+          } else {
             terminalIds.add(id);
+          }
         }
       });
 
