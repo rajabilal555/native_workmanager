@@ -3,8 +3,8 @@ import 'foreground_notification_config.dart';
 
 /// Backoff policy for retry behavior when task fails.
 ///
-/// **Android**: Determines retry behavior for failed WorkManager tasks.
-/// **iOS**: Not applicable (manual retry required).
+/// **Android**: WorkManager `setBackoffCriteria`.
+/// **iOS**: Used by the plugin retry loop for direct / foreground tasks.
 enum BackoffPolicy {
   /// Exponential backoff - Delay doubles after each retry.
   ///
@@ -925,24 +925,24 @@ class Constraints {
   /// Default: [ExactAlarmIOSBehavior.showNotification]
   final ExactAlarmIOSBehavior exactAlarmIOSBehavior;
 
-  /// Backoff policy when task fails and needs retry (Android only).
+  /// Backoff policy when task fails and needs retry.
   ///
-  /// **Android**: Determines retry behavior for failed WorkManager tasks.
   /// - [BackoffPolicy.exponential]: Delay doubles after each retry (30s, 60s, 120s, ...)
   /// - [BackoffPolicy.linear]: Constant delay between retries
   ///
-  /// **iOS**: Not applicable (manual retry required).
+  /// **Android**: WorkManager `setBackoffCriteria`.
+  /// **iOS**: Applied by the plugin retry loop for foreground / direct tasks
+  /// (BGTask scheduling cannot control exact backoff).
   ///
   /// Default: [BackoffPolicy.exponential]
   final BackoffPolicy backoffPolicy;
 
-  /// Initial backoff delay in milliseconds when task fails (Android only).
+  /// Initial backoff delay in milliseconds when a task fails.
   ///
-  /// **Android**: Starting delay before first retry.
-  /// - Minimum: 10,000ms (10 seconds)
-  /// - Subsequent retries follow [backoffPolicy]
+  /// **Android**: Starting delay before first retry (WorkManager minimum: 10,000ms).
+  /// Subsequent retries follow [backoffPolicy].
   ///
-  /// **iOS**: Not applicable.
+  /// **iOS**: Used by the plugin retry loop for direct tasks.
   ///
   /// **Example**:
   /// ```dart
@@ -957,11 +957,11 @@ class Constraints {
 
   /// Maximum number of retry attempts when a task fails.
   ///
-  /// **Android**: Maps to WorkManager's `setInputMerger` / run-attempt cap.
+  /// **Android**: Stored on the WorkRequest and enforced when workers return
+  /// `shouldRetry` / `Result.retry()` (WorkManager itself has no max-retry API).
   /// Retries follow [backoffPolicy] and [backoffDelayMs].
   ///
-  /// **iOS**: Implemented natively in the plugin's execution layer.
-  /// Each retry respects [backoffPolicy] and [backoffDelayMs].
+  /// **iOS**: Enforced in the plugin's execution-layer retry loop.
   ///
   /// - `0` — no retry (fail immediately on first failure)
   /// - `1` — try once, retry once = up to 2 total attempts

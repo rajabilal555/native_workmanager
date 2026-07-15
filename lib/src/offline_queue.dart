@@ -296,10 +296,13 @@ class OfflineQueue {
       return;
     }
 
-    // Build constraints from policy
+    // Build constraints from policy.
+    // maxRetries: 0 — OfflineQueue owns attempt counting / dead-lettering;
+    // do not also stack WorkManager / iOS plugin retries on top.
     final constraints = Constraints(
       requiresNetwork: policy.requiresNetwork,
       requiresCharging: policy.requiresCharging,
+      maxRetries: 0,
     );
 
     try {

@@ -20,6 +20,7 @@ import dev.brewkits.native_workmanager.NativeLogger
 import dev.brewkits.native_workmanager.SimpleAndroidWorkerFactory
 import dev.brewkits.native_workmanager.engine.TaskEventBus
 import dev.brewkits.native_workmanager.utils.MappingUtils.toJson
+import dev.brewkits.native_workmanager.utils.RetryCap
 import org.json.JSONObject
 
 class ForegroundNativeWorker(
@@ -30,6 +31,10 @@ class ForegroundNativeWorker(
     private val fgsConfigJson = inputData.getString("fgsConfigJson")
     private val workerClassName = inputData.getString("workerClassName") ?: "Unknown"
     private val taskId = inputData.getString("taskId") ?: id.toString()
+    private val maxRetries = inputData.getInt(
+        RetryCap.KEY_MAX_RETRIES,
+        RetryCap.DEFAULT_MAX_RETRIES,
+    )
 
     override suspend fun doWork(): Result {
         NativeLogger.d("ForegroundNativeWorker: starting doWork for $taskId ($workerClassName)")
@@ -60,7 +65,11 @@ class ForegroundNativeWorker(
         val env = WorkerEnvironment(null, { isStopped })
 
         return try {
-            val result = worker.doWork(inputJson ?: "", env)
+            val result = RetryCap.apply(
+                result = worker.doWork(inputJson ?: "", env),
+                runAttemptCount = runAttemptCount,
+                maxRetries = maxRetries,
+            )
             when (result) {
                 is WorkerResult.Success -> {
                     val outputJson = result.data?.let { toJson(it as Map<*, *>) }
@@ -79,7 +88,12 @@ class ForegroundNativeWorker(
                 }
                 is WorkerResult.Retry -> {
                     emitToBus(false, result.reason, null)
-                    Result.retry()
+                    val cap = result.attemptCap
+                    if (cap != null && runAttemptCount + 1 >= cap) {
+                        Result.failure()
+                    } else {
+                        Result.retry()
+                    }
                 }
             }
         } catch (e: Exception) {

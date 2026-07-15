@@ -4,8 +4,6 @@ import android.content.Context
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkContinuation
 import androidx.work.WorkManager
-import dev.brewkits.kmpworkmanager.background.data.KmpHeavyWorker
-import dev.brewkits.kmpworkmanager.background.data.KmpWorker
 import dev.brewkits.kmpworkmanager.background.data.NativeTaskScheduler
 import dev.brewkits.kmpworkmanager.background.domain.BackoffPolicy
 import dev.brewkits.native_workmanager.NativeLogger
@@ -13,6 +11,9 @@ import dev.brewkits.native_workmanager.applyMiddlewareInternal
 import dev.brewkits.native_workmanager.store.TaskStore
 import dev.brewkits.native_workmanager.utils.MappingUtils.toJson
 import dev.brewkits.native_workmanager.utils.MappingUtils.parseConstraints
+import dev.brewkits.native_workmanager.utils.RetryCap.putMaxRetries
+import dev.brewkits.native_workmanager.workers.CappedKmpHeavyWorker
+import dev.brewkits.native_workmanager.workers.CappedKmpWorker
 import java.util.concurrent.TimeUnit
 
 object GraphHelper {
@@ -63,9 +64,12 @@ object GraphHelper {
                 workerConfig = TaskStore.sanitizeConfig(inputJson)
             )
 
-            val workerClass = if (constraints.isHeavyTask) KmpHeavyWorker::class.java else KmpWorker::class.java
+            val workerClass =
+                if (constraints.isHeavyTask) CappedKmpHeavyWorker::class.java
+                else CappedKmpWorker::class.java
             val dataBuilder = androidx.work.Data.Builder()
                 .putString("workerClassName", workerClassName)
+                .putMaxRetries(constraints)
             if (inputJson != null) dataBuilder.putString("inputJson", inputJson)
 
             val wmConstraints = androidx.work.Constraints.Builder()

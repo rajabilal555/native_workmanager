@@ -8,8 +8,10 @@ import androidx.work.Data
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkManager
-import dev.brewkits.kmpworkmanager.background.data.KmpWorker
 import dev.brewkits.native_workmanager.engine.FlutterEngineManager
+import dev.brewkits.native_workmanager.utils.RetryCap
+import dev.brewkits.native_workmanager.utils.RetryCap.putMaxRetries
+import dev.brewkits.native_workmanager.workers.CappedKmpWorker
 import dev.brewkits.native_workmanager.workers.DbCleanupWorker
 import dev.brewkits.native_workmanager.workers.utils.SecurityValidator
 import io.flutter.plugin.common.MethodCall
@@ -105,8 +107,9 @@ internal fun NativeWorkmanagerPlugin.handleInitialize(call: MethodCall, result: 
 internal fun NativeWorkmanagerPlugin.scheduleWeeklyDbCleanup() {
     val dataBuilder = Data.Builder()
         .putString("workerClassName", "DbCleanupWorker")
+        .putMaxRetries(RetryCap.DEFAULT_MAX_RETRIES)
     val request = PeriodicWorkRequest.Builder(
-        KmpWorker::class.java,
+        CappedKmpWorker::class.java,
         7L, TimeUnit.DAYS
     )
         .setInputData(dataBuilder.build())

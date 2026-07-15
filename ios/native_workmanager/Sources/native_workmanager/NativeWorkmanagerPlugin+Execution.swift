@@ -367,9 +367,12 @@ extension NativeWorkmanagerPlugin {
         static let noRetry = RetryConfig(maxRetries: 0, initialDelayMs: 30_000, policy: "exponential")
 
         static func from(constraintsMap: [String: Any]?) -> RetryConfig {
-            let maxRetries  = constraintsMap?["maxRetries"]    as? Int    ?? 0
-            let delayMs     = (constraintsMap?["backoffDelayMs"] as? NSNumber)?.int64Value ?? 30_000
-            let policy      = constraintsMap?["backoffPolicy"] as? String ?? "exponential"
+            // Flutter MethodChannel numbers arrive as NSNumber on iOS.
+            let maxRetries = (constraintsMap?["maxRetries"] as? NSNumber)?.intValue
+                ?? (constraintsMap?["maxRetries"] as? Int)
+                ?? 3
+            let delayMs = (constraintsMap?["backoffDelayMs"] as? NSNumber)?.int64Value ?? 30_000
+            let policy = constraintsMap?["backoffPolicy"] as? String ?? "exponential"
             return RetryConfig(maxRetries: maxRetries, initialDelayMs: delayMs, policy: policy)
         }
     }

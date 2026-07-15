@@ -10,13 +10,14 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkManager
 import androidx.work.await
-import dev.brewkits.kmpworkmanager.background.data.KmpHeavyWorker
-import dev.brewkits.kmpworkmanager.background.data.KmpWorker
 import dev.brewkits.kmpworkmanager.background.data.NativeTaskScheduler
 import dev.brewkits.kmpworkmanager.background.domain.*
 import dev.brewkits.native_workmanager.notification.DownloadNotificationManager
 import dev.brewkits.native_workmanager.store.TaskStore.Companion.sanitizeConfig
 import dev.brewkits.native_workmanager.utils.MappingUtils.toJson
+import dev.brewkits.native_workmanager.utils.RetryCap.putMaxRetries
+import dev.brewkits.native_workmanager.workers.CappedKmpHeavyWorker
+import dev.brewkits.native_workmanager.workers.CappedKmpWorker
 import dev.brewkits.native_workmanager.workers.HttpDownloadWorker
 import dev.brewkits.native_workmanager.workers.utils.HostConcurrencyManager
 import dev.brewkits.native_workmanager.workers.utils.KeystorePasswordVault
@@ -678,7 +679,9 @@ internal fun NativeWorkmanagerPlugin.parseConstraints(map: Map<String, Any?>?): 
  * - Combined with setInitialDelay() (any delay > 0), OR
  * - Combined with non-network/non-storage constraints (charging, battery, device-idle).
  * This method omits setExpedited() entirely so all constraint combinations are accepted.
- * KmpWorker and KmpHeavyWorker still handle task dispatch correctly.
+ * KmpWorker / KmpHeavyWorker replacements ([CappedKmpWorker] /
+ * [CappedKmpHeavyWorker]) still handle task dispatch correctly, with
+ * [Constraints.maxRetries] enforcement.
  */
 internal fun NativeWorkmanagerPlugin.enqueueOneTimeWorkDirect(
     taskId: String,
@@ -694,14 +697,15 @@ internal fun NativeWorkmanagerPlugin.enqueueOneTimeWorkDirect(
     val workerClass = if (fgsConfigJson != null) {
         dev.brewkits.native_workmanager.workers.ForegroundNativeWorker::class.java
     } else if (constraints.isHeavyTask) {
-        KmpHeavyWorker::class.java
+        CappedKmpHeavyWorker::class.java
     } else {
-        KmpWorker::class.java
+        CappedKmpWorker::class.java
     }
 
     val dataBuilder = Data.Builder()
         .putString("workerClassName", workerClassName)
         .putString("taskId", taskId)
+        .putMaxRetries(constraints)
 
     if (fgsConfigJson != null) {
         dataBuilder.putString("fgsConfigJson", fgsConfigJson)
@@ -789,14 +793,15 @@ internal fun NativeWorkmanagerPlugin.enqueuePeriodicWorkDirect(
     val workerClass = if (fgsConfigJson != null) {
         dev.brewkits.native_workmanager.workers.ForegroundNativeWorker::class.java
     } else if (constraints.isHeavyTask) {
-        KmpHeavyWorker::class.java
+        CappedKmpHeavyWorker::class.java
     } else {
-        KmpWorker::class.java
+        CappedKmpWorker::class.java
     }
 
     val dataBuilder = Data.Builder()
         .putString("workerClassName", workerClassName)
         .putString("taskId", taskId)
+        .putMaxRetries(constraints)
 
     if (fgsConfigJson != null) {
         dataBuilder.putString("fgsConfigJson", fgsConfigJson)

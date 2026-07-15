@@ -3,9 +3,11 @@ package dev.brewkits.native_workmanager
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import dev.brewkits.kmpworkmanager.background.data.KmpWorker
 import dev.brewkits.native_workmanager.store.OfflineQueueStore
 import dev.brewkits.native_workmanager.utils.CommandProcessor.scheduleOfflineQueueProcessor
+import dev.brewkits.native_workmanager.utils.RetryCap
+import dev.brewkits.native_workmanager.utils.RetryCap.putMaxRetries
+import dev.brewkits.native_workmanager.workers.CappedKmpWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -58,8 +60,7 @@ class OfflineQueueProcessor(
     }
 
     private fun enqueueEntry(context: Context, entry: OfflineQueueStore.QueueRecord) {
-        // Build a OneTimeWorkRequest for the actual worker
-        val workerClass = KmpWorker::class.java
+        val workerClass = CappedKmpWorker::class.java
         
         val dataBuilder = androidx.work.Data.Builder()
             .putString("workerClassName", entry.workerClassName)
@@ -77,6 +78,7 @@ class OfflineQueueProcessor(
 
         // Parse retry policy to apply constraints
         val constraintsBuilder = androidx.work.Constraints.Builder()
+        var maxRetries = RetryCap.DEFAULT_MAX_RETRIES
         if (entry.retryPolicy != null) {
             val policy = JSONObject(entry.retryPolicy)
             if (policy.optBoolean("requiresNetwork", true)) {
@@ -85,7 +87,9 @@ class OfflineQueueProcessor(
             if (policy.optBoolean("requiresCharging", false)) {
                 constraintsBuilder.setRequiresCharging(true)
             }
+            maxRetries = policy.optInt("maxRetries", RetryCap.DEFAULT_MAX_RETRIES).coerceAtLeast(0)
         }
+        dataBuilder.putMaxRetries(maxRetries)
 
         val request = androidx.work.OneTimeWorkRequest.Builder(workerClass)
             .setConstraints(constraintsBuilder.build())

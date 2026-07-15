@@ -21,6 +21,8 @@ object MappingUtils {
         val allowWhileIdle = map["allowWhileIdle"] as? Boolean ?: false
         val isHeavyTask = map["isHeavyTask"] as? Boolean ?: false
         val backoffDelayMs = (map["backoffDelayMs"] as? Number)?.toLong() ?: 30_000L
+        // KMP Constraints has no maxRetries field — stash in extras for enqueue paths.
+        val maxRetries = (map["maxRetries"] as? Number)?.toInt()?.coerceAtLeast(0) ?: 3
 
         val backoffPolicy = when ((map["backoffPolicy"] as? String)?.lowercase()) {
             "linear" -> BackoffPolicy.LINEAR
@@ -52,6 +54,7 @@ object MappingUtils {
 
         // Extract FGS config and store in extras to preserve across reloads/resumes
         val extras = mutableMapOf<String, String>()
+        extras[RetryCap.KEY_MAX_RETRIES] = maxRetries.toString()
         val fgsConfigMap = map["foregroundNotificationConfig"] as? Map<*, *>
         if (fgsConfigMap != null) {
             extras["fgsConfig"] = toJson(fgsConfigMap)

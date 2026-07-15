@@ -5,15 +5,18 @@ import androidx.work.Data
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
-import dev.brewkits.kmpworkmanager.background.data.KmpHeavyWorker
-import dev.brewkits.kmpworkmanager.background.data.KmpWorker
 import dev.brewkits.kmpworkmanager.background.data.NativeTaskScheduler
+import dev.brewkits.kmpworkmanager.background.domain.BackoffPolicy
 import dev.brewkits.kmpworkmanager.background.domain.SystemConstraint
 import dev.brewkits.native_workmanager.NativeLogger
 import dev.brewkits.native_workmanager.applyMiddlewareInternal
 import dev.brewkits.native_workmanager.store.ChainStore
 import dev.brewkits.native_workmanager.store.TaskStore
+import dev.brewkits.native_workmanager.utils.RetryCap.putMaxRetries
+import dev.brewkits.native_workmanager.workers.CappedKmpHeavyWorker
+import dev.brewkits.native_workmanager.workers.CappedKmpWorker
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 object ChainHelper {
 
@@ -106,7 +109,9 @@ object ChainHelper {
         val constraintsMap = taskData["constraints"] as? Map<String, Any?>
         val constraints = MappingUtils.parseConstraints(constraintsMap)
 
-        val dataBuilder = Data.Builder().putString("workerClassName", workerClassName)
+        val dataBuilder = Data.Builder()
+            .putString("workerClassName", workerClassName)
+            .putMaxRetries(constraints)
         if (inputJson != null) dataBuilder.putString("inputJson", inputJson)
 
         val networkType = when {
@@ -121,10 +126,18 @@ object ChainHelper {
         if (sysConstraints.contains(SystemConstraint.DEVICE_IDLE)) wmConstraintsBuilder.setRequiresDeviceIdle(true)
         if (sysConstraints.contains(SystemConstraint.REQUIRE_BATTERY_NOT_LOW)) wmConstraintsBuilder.setRequiresBatteryNotLow(true)
 
-        val workerClass = if (constraints.isHeavyTask) KmpHeavyWorker::class.java else KmpWorker::class.java
+        val wmBackoffPolicy = when (constraints.backoffPolicy) {
+            BackoffPolicy.LINEAR -> androidx.work.BackoffPolicy.LINEAR
+            else -> androidx.work.BackoffPolicy.EXPONENTIAL
+        }
+
+        val workerClass =
+            if (constraints.isHeavyTask) CappedKmpHeavyWorker::class.java
+            else CappedKmpWorker::class.java
         return OneTimeWorkRequest.Builder(workerClass)
             .setConstraints(wmConstraintsBuilder.build())
             .setInputData(dataBuilder.build())
+            .setBackoffCriteria(wmBackoffPolicy, constraints.backoffDelayMs, TimeUnit.MILLISECONDS)
             .addTag(NativeTaskScheduler.TAG_KMP_TASK)
             .addTag("worker-$workerClassName")
             .addTag(taskId)

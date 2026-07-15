@@ -8,6 +8,8 @@ import dev.brewkits.native_workmanager.OfflineQueueProcessor
 import dev.brewkits.native_workmanager.store.ChainStore
 import dev.brewkits.native_workmanager.store.OfflineQueueStore
 import dev.brewkits.native_workmanager.store.TaskStore
+import dev.brewkits.native_workmanager.utils.RetryCap.putMaxRetries
+import dev.brewkits.native_workmanager.workers.CappedKmpWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -120,10 +122,11 @@ object CommandProcessor {
     ) {
         val effectiveInputJson = applyMiddlewareInternal(context, workerClassName, inputJson)
 
-        val workerClass = dev.brewkits.kmpworkmanager.background.data.KmpWorker::class.java
+        val workerClass = CappedKmpWorker::class.java
         val dataBuilder = Data.Builder()
             .putString("workerClassName", workerClassName)
             .putString("inputJson", effectiveInputJson)
+            .putMaxRetries(RetryCap.DEFAULT_MAX_RETRIES)
 
         val request = OneTimeWorkRequest.Builder(workerClass)
             .setInputData(dataBuilder.build())

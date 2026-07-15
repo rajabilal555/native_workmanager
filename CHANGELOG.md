@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Android `Constraints.maxRetries` was ignored.** WorkManager has no max-retry
+  API, and kmpworkmanager maps `Failure(shouldRetry=true)` to unbounded
+  `Result.retry()`. `maxRetries` is now stored on WorkRequest input data and
+  enforced by `CappedKmpWorker` / `CappedKmpHeavyWorker` / `ForegroundNativeWorker`
+  (same semantics as iOS: `N` retries → up to `N + 1` total attempts). Also wires
+  backoff onto chain nodes that previously omitted it.
+
+- **iOS `RetryConfig.maxRetries` default / codec.** Missing `maxRetries` now
+  defaults to `3` (matching Dart). Values are read via `NSNumber` so MethodChannel
+  integers are not silently dropped to “no retries”.
+
 - **DartWorker `return false` never retried — permanent `Result.failure()`.**
   Android `DartCallbackWorker` and iOS Dart callback paths mapped a `false`
   callback result to `WorkerResult.Failure` / `.failure` without
