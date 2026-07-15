@@ -567,7 +567,7 @@ extension NativeWorkmanagerPlugin {
                         callbackHandle: callbackHandle, input: input)
                 }
                 return success ? .success(message: "Callback returned true")
-                               : .failure(message: "Callback returned false")
+                               : .failure(message: "Callback returned false", shouldRetry: true)
             } catch {
                 return WorkerResult.failure(message: "DartCallbackWorker: \(error.localizedDescription)")
             }
@@ -587,7 +587,7 @@ extension NativeWorkmanagerPlugin {
                     if let success = result as? Bool {
                         continuation.resume(returning: success
                             ? .success(message: "Callback returned true")
-                            : .failure(message: "Callback returned false"))
+                            : .failure(message: "Callback returned false", shouldRetry: true))
                     } else if let flutterError = result as? FlutterError {
                         continuation.resume(returning: .failure(
                             message: "Callback error: \(flutterError.message ?? "unknown")"))

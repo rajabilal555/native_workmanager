@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **DartWorker `return false` never retried — permanent `Result.failure()`.**
+  Android `DartCallbackWorker` and iOS Dart callback paths mapped a `false`
+  callback result to `WorkerResult.Failure` / `.failure` without
+  `shouldRetry: true`. Because `Failure.shouldRetry` defaults to `false`,
+  WorkManager received `Result.failure()` (`reschedule = false`) and
+  `Constraints.maxRetries` / `backoffDelayMs` were ignored despite docs
+  promising retry-on-false. Native engine/setup exceptions still use
+  `shouldRetry = false` so broken engine configuration does not loop forever.
+
+---
+
 ## [1.3.3] - 2026-07-14
 
 ### Fixed
